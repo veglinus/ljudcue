@@ -117,8 +117,11 @@ class _ControlsTabState extends State<ControlsTab>
                         builder: (BuildContext context,
                             AsyncSnapshot<Duration> snapshot) {
                           if (snapshot.hasData) {
+                            double sliderValue = snapshot.data!.inMilliseconds
+                                .toDouble()
+                                .clamp(0.0, currentDuration);
                             return Slider(
-                              value: snapshot.data!.inMilliseconds.toDouble(),
+                              value: sliderValue,
                               min: 0.0,
                               max: currentDuration,
                               onChanged: (double value) {

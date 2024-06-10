@@ -4,6 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:playsound/controls.dart';
 import 'package:playsound/sources.dart';
+import 'package:playsound/utils.dart';
 
 const defaultPlayerCount = 1;
 
@@ -33,20 +34,27 @@ class _ExampleAppState extends State<_ExampleApp> {
   @override
   void initState() {
     super.initState();
+
     audioPlayers.asMap().forEach((index, player) {
       streams.add(
         player.onPlayerStateChanged.listen(
           (it) {
             switch (it) {
               case PlayerState.stopped:
-                //debugPrint("Player stopped!");
-                //setState(() {});
-                //toast('Player stopped!',textKey: Key('toast-player-stopped-$index'),);
+                debugPrint("Player stopped!");
+                setState(() {});
+                toast(
+                  'Player stopped!',
+                  textKey: Key('toast-player-stopped-$index'),
+                );
                 break;
               case PlayerState.completed:
-                //ebugPrint("Player complete!");
-                //setState(() {});
-                //toast('Player complete!',textKey: Key('toast-player-complete-$index'),);
+                debugPrint("Player complete!");
+                setState(() {});
+                toast(
+                  'Player complete!',
+                  textKey: Key('toast-player-complete-$index'),
+                );
                 break;
               default:
                 break;
@@ -56,7 +64,7 @@ class _ExampleAppState extends State<_ExampleApp> {
       );
       streams.add(
         player.onSeekComplete.listen((it) {
-          //debugPrint("Seek complete!");
+          debugPrint("Seek complete!");
         }),
       );
     });
