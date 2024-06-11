@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 
@@ -13,160 +15,162 @@ class ControlsTab extends StatefulWidget {
   State<ControlsTab> createState() => _ControlsTabState();
 }
 
-class _ControlsTabState extends State<ControlsTab>
-    with AutomaticKeepAliveClientMixin<ControlsTab> {
-  String modalInputSeek = '';
+class _ControlsTabState extends State<ControlsTab> {
+  final _playerState = ValueNotifier<PlayerState>(PlayerState.stopped);
+  Duration? _duration;
+  Duration? _position;
 
-  double currentDuration = 0.0;
-  ValueNotifier<PlayerState> playerStateNotifier =
-      ValueNotifier(PlayerState.stopped);
+  StreamSubscription? _durationSubscription;
+  StreamSubscription? _positionSubscription;
+  StreamSubscription? _playerCompleteSubscription;
+  StreamSubscription? _playerStateChangeSubscription;
 
-  @override
-  void initState() {
-    super.initState();
-    widget.player.onDurationChanged.listen(updateDuration);
-    widget.player.onPlayerStateChanged.listen(updatePlayerState);
-  }
+  String get _durationText => _duration?.toString().split('.').first ?? '';
+
+  String get _positionText => _position?.toString().split('.').first ?? '';
+
+  AudioPlayer get player => widget.player;
 
   Future<void> _update(Future<void> Function() fn) async {
     await fn();
     // update everyone who listens to "player"
-    //debugPrint("update");
     setState(() {});
   }
 
-  void updateDuration(Duration duration) async {
-    setState(() {
-      currentDuration = duration.inMilliseconds.toDouble();
-    });
-    //debugPrint('Duration set to: ${duration.inMilliseconds}ms');
+  @override
+  void initState() {
+    super.initState();
+    // Use initial values from player
+    _playerState.value = player.state;
+    player.getDuration().then(
+          (value) => setState(() {
+            _duration = value;
+          }),
+        );
+    player.getCurrentPosition().then(
+          (value) => setState(() {
+            _position = value;
+          }),
+        );
+    _initStreams();
   }
 
-  void updatePlayerState(PlayerState state) {
-    setState(() {
-      playerStateNotifier.value = state;
-    });
-    //debugPrint("Player state set to: $state");
+  @override
+  void setState(VoidCallback fn) {
+    if (mounted) {
+      super.setState(fn);
+    }
+  }
+
+  @override
+  void dispose() {
+    _durationSubscription?.cancel();
+    _positionSubscription?.cancel();
+    _playerCompleteSubscription?.cancel();
+    _playerStateChangeSubscription?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
-    playerStateNotifier = ValueNotifier(widget.player.state);
-
-    return Center(
-      child: Container(
-        alignment: Alignment.topCenter,
-        child: SingleChildScrollView(
-          controller: ScrollController(),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    IconButton(
-                      key: const Key('control-stop'),
-                      icon: const Icon(Icons.stop, size: 45.0),
-                      onPressed: widget.player.stop,
-                    ),
-                    ValueListenableBuilder(
-                      valueListenable: playerStateNotifier,
-                      builder: (context, value, child) {
-                        return IconButton(
-                          key: const Key('control-play-pause'),
-                          icon: Icon(
-                            value == PlayerState.playing
-                                ? Icons.pause
-                                : Icons.play_arrow,
-                            size: 50.0,
-                          ),
-                          onPressed: () {
-                            if (value == PlayerState.playing) {
-                              widget.player.pause();
-                            } else {
-                              widget.player.resume();
-                            }
-                          },
-                        );
-                      },
-                    ),
-                    IconButton(
-                      key: const Key('control-loop'),
-                      icon: Icon(
-                        widget.player.releaseMode == ReleaseMode.loop
-                            ? Icons.repeat_on
-                            : Icons.repeat,
-                        size: 45.0,
-                      ),
-                      onPressed: () async {
-                        await _update(() => widget.player.setReleaseMode(
-                            widget.player.releaseMode == ReleaseMode.loop
-                                ? ReleaseMode.stop
-                                : ReleaseMode.loop));
-                      },
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: StreamBuilder<Duration>(
-                        stream: widget.player.onPositionChanged,
-                        builder: (BuildContext context,
-                            AsyncSnapshot<Duration> snapshot) {
-                          if (snapshot.hasData) {
-                            double sliderValue = snapshot.data!.inMilliseconds
-                                .toDouble()
-                                .clamp(0.0, currentDuration);
-                            return Slider(
-                              value: sliderValue,
-                              min: 0.0,
-                              max: currentDuration,
-                              onChanged: (double value) {
-                                widget.player.seek(
-                                    Duration(milliseconds: value.toInt()));
-                              },
-                            );
-                          } else {
-                            //return const CircularProgressIndicator();
-                            return const Slider(
-                              value: 0.0,
-                              min: 0.0,
-                              max: 1.0,
-                              onChanged: null,
-                              activeColor: Colors
-                                  .grey, // Optional: change the color to indicate disabled state
-                              inactiveColor: Colors.grey,
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    Slider(
-                      value: widget.player.volume,
-                      min: 0.0,
-                      max: 1.0,
-                      onChanged: (double value) async {
-                        await _update(() => widget.player.setVolume(value));
-                      },
-                    ),
-                  ],
-                ),
-              ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            IconButton(
+              key: const Key('control-stop'),
+              icon: const Icon(Icons.stop, size: 45.0),
+              onPressed: widget.player.stop,
             ),
-          ),
+            ValueListenableBuilder(
+              valueListenable: _playerState,
+              builder: (context, value, child) {
+                return IconButton(
+                  key: const Key('control-play-pause'),
+                  icon: Icon(
+                    value == PlayerState.playing
+                        ? Icons.pause
+                        : Icons.play_arrow,
+                    size: 50.0,
+                  ),
+                  onPressed: () {
+                    if (value == PlayerState.playing) {
+                      widget.player.pause();
+                    } else {
+                      widget.player.resume();
+                    }
+                  },
+                );
+              },
+            ),
+            IconButton(
+              key: const Key('control-loop'),
+              icon: Icon(
+                widget.player.releaseMode == ReleaseMode.loop
+                    ? Icons.repeat_on
+                    : Icons.repeat,
+                size: 45.0,
+              ),
+              onPressed: () async {
+                await _update(() => widget.player.setReleaseMode(
+                    widget.player.releaseMode == ReleaseMode.loop
+                        ? ReleaseMode.stop
+                        : ReleaseMode.loop));
+              },
+            ),
+          ],
         ),
-      ),
+        Slider(
+          onChanged: (value) {
+            final duration = _duration;
+            if (duration == null) {
+              return;
+            }
+            final position = value * duration.inMilliseconds;
+            player.seek(Duration(milliseconds: position.round()));
+          },
+          value: (_position != null &&
+                  _duration != null &&
+                  _position!.inMilliseconds > 0 &&
+                  _position!.inMilliseconds < _duration!.inMilliseconds)
+              ? _position!.inMilliseconds / _duration!.inMilliseconds
+              : 0.0,
+        ),
+        Text(
+          _position != null
+              ? '$_positionText / $_durationText'
+              : _duration != null
+                  ? _durationText
+                  : '',
+          style: const TextStyle(fontSize: 16.0),
+        ),
+      ],
     );
   }
 
-  @override
-  bool get wantKeepAlive => true;
+  void _initStreams() {
+    _durationSubscription = player.onDurationChanged.listen((duration) {
+      setState(() => _duration = duration);
+    });
+
+    _positionSubscription = player.onPositionChanged.listen(
+      (p) => setState(() => _position = p),
+    );
+
+    _playerCompleteSubscription = player.onPlayerComplete.listen((event) {
+      setState(() {
+        _playerState.value = PlayerState.stopped;
+        _position = Duration.zero;
+      });
+    });
+
+    _playerStateChangeSubscription =
+        player.onPlayerStateChanged.listen((state) {
+      setState(() {
+        _playerState.value = state;
+      });
+    });
+  }
 }

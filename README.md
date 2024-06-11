@@ -6,9 +6,9 @@ Todo:
 - [x] Seek (scrubbing)
 - [ ] Advanced seek with waveform display and choosing area to play
 - [ ] Display waveforms
-- [ ] Save session
-- [ ] Load session
-- [ ] Some kind of session management
+- [x] Save session
+- [x] Load session
+- [x] Some kind of session management
 - [ ] Change how individual stems are played (playback, volume, etc.)
 - [ ] Next, previous stems in controls
 - [ ] Keep awake setting always on

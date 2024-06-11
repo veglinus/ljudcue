@@ -159,4 +159,76 @@ class ProjectManager {
     savedProjects.addAll(savedProjectsFromPrefs);
     //});
   }
+
+  Future<String?> loadMostRecentProject() async {
+    final prefs = await SharedPreferences.getInstance();
+    final currentProjectFromPrefs = prefs.getString('currentProject');
+    if (currentProjectFromPrefs != null) {
+      debugPrint("Loading latest saved project");
+      String? jsonData = await loadProject(currentProjectFromPrefs);
+      return jsonData;
+    }
+    return null;
+  }
+
+  // TODO: Build into a menu or something instead (drawer)
+  // or just move it to a separate file
+  Future<void> showProjectPicker(BuildContext context) async {
+    double screenWidth = MediaQuery.of(context).size.width;
+    double screenHeight = MediaQuery.of(context).size.height;
+
+    String? pickedProject = await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+            title: const Text('Pick a project'),
+            content: SizedBox(
+              width: screenWidth * 0.6,
+              height: screenHeight * 0.6,
+              child: Column(
+                children: <Widget>[
+                  ElevatedButton(
+                    onPressed: () async {
+                      await loadProjectFromStorage();
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                      }
+                    },
+                    child: const Text("Load project from storage"),
+                  ),
+                  Expanded(
+                    child: savedProjects.isNotEmpty
+                        ? ListView.builder(
+                            itemCount: savedProjects.length,
+                            itemBuilder: (BuildContext context, int index) {
+                              return ListTile(
+                                title: Text(savedProjects[index]),
+                                onTap: () {
+                                  Navigator.of(context)
+                                      .pop(savedProjects[index]);
+                                },
+                              );
+                            },
+                          )
+                        : const Center(child: Text("No projects found")),
+                  ),
+                ],
+              ),
+            ),
+            actions: <Widget>[
+              TextButton(
+                child: const Text('Close'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ]);
+      },
+    );
+
+    if (pickedProject != null) {
+      // Load the picked project
+      await loadProject(pickedProject);
+    }
+  }
 }

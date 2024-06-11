@@ -36,6 +36,7 @@ class _SourcesTabState extends State<SourcesTab>
 
   ProjectManager project = ProjectManager();
 
+  /* PLAYER METHODS */
   Future<void> _setSource(Source source) async {
     try {
       await player.setSource(source);
@@ -56,7 +57,6 @@ class _SourcesTabState extends State<SourcesTab>
   Future<void> _play(Source source) async {
     //await player.stop();
     //await player.play(source);
-
     await player.resume();
 
     toast(
@@ -64,7 +64,9 @@ class _SourcesTabState extends State<SourcesTab>
       textKey: const Key('toast-set-play'),
     );
   }
+  /* END OF PLAYER METHODS */
 
+  /* METHODS USED BY SOURCETILE */
   Future<void> _removeSourceWidget(Widget sourceWidget) async {
     setState(() {
       sourceWidgets.remove(sourceWidget);
@@ -78,6 +80,7 @@ class _SourcesTabState extends State<SourcesTab>
       rebuildCounter++;
     });
   }
+  /* END OF SOURCETILE METHODS */
 
   Future<void> save() async {
     project.save(sourceWidgets);
@@ -90,6 +93,15 @@ class _SourcesTabState extends State<SourcesTab>
     }
   }
 
+  Future<void> _loadMostRecentProject() async {
+    String? jsonData = await project.loadMostRecentProject();
+    if (jsonData != null) {
+      setDataToView(jsonData);
+      toast("Loaded latest opened project!");
+    }
+  }
+
+  // TODO: Move this to separate file
   void setDataToView(String jsonData) async {
     List<dynamic> data = jsonDecode(jsonData);
 
@@ -101,6 +113,7 @@ class _SourcesTabState extends State<SourcesTab>
     setState(() {});
   }
 
+  // TODO: Move this to separate file
   Future<Widget> getCorrectWidget(dynamic input) async {
     Source source;
     bool invalid = false;
@@ -139,16 +152,6 @@ class _SourcesTabState extends State<SourcesTab>
     }
   }
 
-/*
-  Future<void> _setSourceBytesRemote(
-    Future<void> Function(Source) fun, {
-    required String url,
-    String? mimeType,
-  }) async {
-    final bytes = await http.readBytes(Uri.parse(url));
-    await fun(BytesSource(bytes, mimeType: mimeType));
-  }*/
-
   Widget createSourceTile({
     required String title,
     required String subtitle,
@@ -169,19 +172,6 @@ class _SourcesTabState extends State<SourcesTab>
         playKey: playKey,
         buttonColor: buttonColor,
       );
-
-  Future<void> _loadMostRecentProject() async {
-    final prefs = await SharedPreferences.getInstance();
-    final currentProjectFromPrefs = prefs.getString('currentProject');
-    if (currentProjectFromPrefs != null) {
-      debugPrint("Loading latest saved project");
-      String? jsonData = await project.loadProject(currentProjectFromPrefs);
-      if (jsonData != null) {
-        setDataToView(jsonData);
-        toast("Loaded latest opened project! $currentProjectFromPrefs");
-      }
-    }
-  }
 
   @override
   void initState() {
@@ -228,7 +218,7 @@ class _SourcesTabState extends State<SourcesTab>
                           onPressed: () {
                             //debugPrint('Loading session');
                             //loadWidgetData();
-                            _showProjectPicker();
+                            project.showProjectPicker(context);
                           },
                         ),
                       ],
@@ -246,6 +236,7 @@ class _SourcesTabState extends State<SourcesTab>
           ),
         ),
         Align(
+          // TODO: Move this to separate file
           alignment: Alignment.bottomRight,
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -294,7 +285,6 @@ class _SourcesTabState extends State<SourcesTab>
                             ),
                           );
                           setState(() {});
-
                           save();
                         },
                       ),
@@ -310,79 +300,28 @@ class _SourcesTabState extends State<SourcesTab>
     );
   }
 
-  // TODO: Build into a menu or something instead (drawer)
-  Future<void> _showProjectPicker() async {
-    double screenWidth = MediaQuery.of(context).size.width;
-    double screenHeight = MediaQuery.of(context).size.height;
-
-    String? pickedProject = await showDialog<String>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-            title: const Text('Pick a project'),
-            content: SizedBox(
-              width: screenWidth * 0.6,
-              height: screenHeight * 0.6,
-              child: Column(
-                children: <Widget>[
-                  ElevatedButton(
-                    onPressed: () async {
-                      await loadProjectFromStorage();
-                      if (context.mounted) {
-                        Navigator.of(context).pop();
-                      }
-                    },
-                    child: const Text("Load project from storage"),
-                  ),
-                  Expanded(
-                    child: project.savedProjects.isNotEmpty
-                        ? ListView.builder(
-                            itemCount: project.savedProjects.length,
-                            itemBuilder: (BuildContext context, int index) {
-                              return ListTile(
-                                title: Text(project.savedProjects[index]),
-                                onTap: () {
-                                  Navigator.of(context)
-                                      .pop(project.savedProjects[index]);
-                                },
-                              );
-                            },
-                          )
-                        : const Center(child: Text("No projects found")),
-                  ),
-                ],
-              ),
-            ),
-            actions: <Widget>[
-              TextButton(
-                child: const Text('Close'),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-              ),
-            ]);
-      },
-    );
-
-    if (pickedProject != null) {
-      // Load the picked project
-      await project.loadProject(pickedProject);
-    }
-  }
-
   @override
   bool get wantKeepAlive => true;
 
-  /**
-   * UNUSED FUNCTIONALITY
-   */
+  /* UNUSED FUNCTIONALITY */
 
+  /*
   Future<void> _setSourceBytesAsset(
     Future<void> Function(Source) fun, {
     required String asset,
     String? mimeType,
   }) async {
     final bytes = await AudioCache.instance.loadAsBytes(asset);
+    await fun(BytesSource(bytes, mimeType: mimeType));
+  }
+
+
+  Future<void> _setSourceBytesRemote(
+    Future<void> Function(Source) fun, {
+    required String url,
+    String? mimeType,
+  }) async {
+    final bytes = await http.readBytes(Uri.parse(url));
     await fun(BytesSource(bytes, mimeType: mimeType));
   }
 
@@ -523,5 +462,5 @@ class _SourcesTabState extends State<SourcesTab>
         buttonColor: Colors.red,
       ),
     ]);
-  }
+  }*/
 }
