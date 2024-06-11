@@ -46,6 +46,7 @@ class _PlaySoundState extends State<_PlaySound> {
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
+              /*
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -53,7 +54,7 @@ class _PlaySoundState extends State<_PlaySound> {
                     audioPlayer: myAudioPlayer,
                   ),
                 ),
-              );
+              );*/
             },
           ),
         ],

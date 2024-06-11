@@ -1,9 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:playsound/components/_SourceTile.dart';
@@ -11,7 +10,6 @@ import 'package:playsound/ProjectManager.dart';
 import 'package:playsound/utils.dart';
 import 'package:playsound/components/_SourceDialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-//import 'dart:html' as html;
 
 class SourcesTab extends StatefulWidget {
   final AudioPlayer player;
@@ -28,19 +26,22 @@ class SourcesTab extends StatefulWidget {
 class _SourcesTabState extends State<SourcesTab>
     with AutomaticKeepAliveClientMixin<SourcesTab> {
   AudioPlayer get player => widget.player;
-
-  final List<Widget> sourceWidgets = [];
-  //final List<String> savedProjects = [];
-  //ValueNotifier<String> currentProject = ValueNotifier<String>('');
+  final List<SourceTile> sourceWidgets = [];
+  late ValueNotifier<List<SourceTile>> sourceWidgetsNotifier;
   int rebuildCounter = 0;
-
   ProjectManager project = ProjectManager();
+  ValueNotifier<Source?> currentlyPlayingSource = ValueNotifier<Source?>(null);
+  final _playerState = ValueNotifier<PlayerState>(PlayerState.stopped);
+  // ignore: unused_field
+  StreamSubscription? _playerStateChangeSubscription;
+  bool isReorderingEnabled = false;
 
   /* PLAYER METHODS */
   Future<void> _setSource(Source source) async {
     try {
       await player.setSource(source);
       await player.stop();
+      currentlyPlayingSource.value = source;
 
       toast(
         'Completed setting source.',
@@ -105,16 +106,18 @@ class _SourcesTabState extends State<SourcesTab>
   void setDataToView(String jsonData) async {
     List<dynamic> data = jsonDecode(jsonData);
 
+    int index = 1;
     for (var item in data) {
       //debugPrint("Drawing widget: $item");
-      Widget widget = await getCorrectWidget(item);
+      SourceTile widget = await getCorrectWidget(item);
+      widget.index = index++;
       sourceWidgets.add(widget);
     }
     setState(() {});
   }
 
   // TODO: Move this to separate file
-  Future<Widget> getCorrectWidget(dynamic input) async {
+  Future<SourceTile> getCorrectWidget(dynamic input) async {
     Source source;
     bool invalid = false;
 
@@ -135,43 +138,43 @@ class _SourcesTabState extends State<SourcesTab>
     }
 
     if (invalid) {
-      return createSourceTile(
+      return SourceTile(
+        key: UniqueKey(),
+        setSource: () => _setSource(source),
+        play: () => _play(source),
+        removeSource: _removeSourceWidget,
+        source: source,
+        onEditSave: () => saveAndUpdate(),
         //setSourceKey: const Key('setSource-asset-invalid'),
         title: "Invalid Asset - ${input['title']}",
         subtitle: input['subtitle'],
-        source: source,
         buttonColor: Colors.red,
+        sourceNotifier: currentlyPlayingSource,
+        playerState: _playerState,
       );
     } else {
-      return createSourceTile(
+      return SourceTile(
+        key: UniqueKey(),
+        setSource: () => _setSource(source),
+        play: () => _play(source),
+        removeSource: _removeSourceWidget,
+        source: source,
+        onEditSave: () => saveAndUpdate(),
         //setSourceKey: input['setSourceKey'],
         title: input['title'],
         subtitle: input['subtitle'],
-        source: source,
+        sourceNotifier: currentlyPlayingSource,
+        playerState: _playerState,
       );
     }
   }
 
-  Widget createSourceTile({
-    required String title,
-    required String subtitle,
-    required Source source,
-    Key? setSourceKey,
-    Color? buttonColor,
-    Key? playKey,
-  }) =>
-      SourceTile(
-        setSource: () => _setSource(source),
-        play: () => _play(source),
-        removeSource: _removeSourceWidget,
-        getSource: () => source,
-        onEditSave: () => saveAndUpdate(),
-        title: title,
-        subtitle: subtitle,
-        setSourceKey: setSourceKey,
-        playKey: playKey,
-        buttonColor: buttonColor,
-      );
+  Future<void> setSourceWidgetsIndexes() async {
+    for (var i = 0; i < sourceWidgets.length; i++) {
+      sourceWidgets[i].index = i + 1;
+    }
+    setState(() {});
+  }
 
   @override
   void initState() {
@@ -185,6 +188,14 @@ class _SourcesTabState extends State<SourcesTab>
       final prefs = await SharedPreferences.getInstance();
       prefs.setString('currentProject', project.currentProject.value);
     });
+
+    _playerStateChangeSubscription =
+        player.onPlayerStateChanged.listen((state) {
+      //debugPrint("onPlayerStateChanged: $state");
+      setState(() {
+        _playerState.value = state;
+      });
+    });
   }
 
   @override
@@ -196,41 +207,81 @@ class _SourcesTabState extends State<SourcesTab>
         Center(
           child: Container(
             alignment: Alignment.topCenter,
-            child: SingleChildScrollView(
-              controller: ScrollController(),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ElevatedButton(
+                        child: const Text('Save Session'),
+                        onPressed: () {
+                          debugPrint('Saving session');
+                          save();
+                        },
+                      ),
+                      const SizedBox(width: 16),
+                      ElevatedButton(
+                        child: const Text('Load session'),
+                        onPressed: () {
+                          //debugPrint('Loading session');
+                          //loadWidgetData();
+                          project.showProjectPicker(context);
+                        },
+                      ),
+                      ElevatedButton(
+                          // Create a button for setting reordering on or off
+                          child: Text(isReorderingEnabled
+                              ? 'Disable reordering'
+                              : 'Enable reordering'),
+                          onPressed: () {
+                            setState(() {
+                              isReorderingEnabled = !isReorderingEnabled;
+                            });
+                          }),
+                    ],
+                  ),
+                  Expanded(
+                    child: ReorderableListView(
+                      buildDefaultDragHandles: false,
+                      key: ValueKey(rebuildCounter),
+                      onReorder: (oldIndex, newIndex) {
+                        setState(() {
+                          if (newIndex > oldIndex) {
+                            newIndex -= 1;
+                          }
+                          final SourceTile item =
+                              sourceWidgets.removeAt(oldIndex);
+                          sourceWidgets.insert(newIndex, item);
+                          setSourceWidgetsIndexes();
+                          save();
+                        });
+                      },
                       children: [
-                        ElevatedButton(
-                          child: const Text('Save Session'),
-                          onPressed: () {
-                            debugPrint('Saving session');
-                            save();
-                          },
-                        ),
-                        const SizedBox(width: 16),
-                        ElevatedButton(
-                          child: const Text('Load session'),
-                          onPressed: () {
-                            //debugPrint('Loading session');
-                            //loadWidgetData();
-                            project.showProjectPicker(context);
-                          },
-                        ),
+                        for (var i = 0; i < sourceWidgets.length; i++)
+                          KeyedSubtree(
+                            key: ValueKey(i),
+                            child: isReorderingEnabled
+                                ? ReorderableDragStartListener(
+                                    index: i,
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.drag_handle),
+                                        Expanded(child: sourceWidgets[i]),
+                                      ],
+                                    ),
+                                  )
+                                : Row(
+                                    children: [
+                                      Expanded(child: sourceWidgets[i]),
+                                    ],
+                                  ),
+                          ),
                       ],
                     ),
-                    Column(key: ValueKey(rebuildCounter), children: [
-                      for (var i = 0; i < sourceWidgets.length; i++) ...[
-                        sourceWidgets[i],
-                        const Divider(),
-                      ],
-                    ]),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -253,13 +304,19 @@ class _SourcesTabState extends State<SourcesTab>
                       final path = result?.files.single.path;
 
                       if (path != null) {
-                        sourceWidgets.add(
-                          createSourceTile(
-                            title: 'Device File',
-                            subtitle: path,
-                            source: DeviceFileSource(path),
-                          ),
-                        );
+                        sourceWidgets.add(SourceTile(
+                          key: UniqueKey(),
+                          setSource: () => _setSource(DeviceFileSource(path)),
+                          play: () => _play(DeviceFileSource(path)),
+                          removeSource: _removeSourceWidget,
+                          source: DeviceFileSource(path),
+                          onEditSave: () => saveAndUpdate(),
+                          title: 'Device File',
+                          subtitle: path,
+                          sourceNotifier: currentlyPlayingSource,
+                          playerState: _playerState,
+                        ));
+                        setSourceWidgetsIndexes();
                         setState(() {});
                         save();
                       } else {
@@ -277,13 +334,19 @@ class _SourcesTabState extends State<SourcesTab>
                     dialog(
                       SourceDialog(
                         onAdd: (Source source, String path) {
-                          sourceWidgets.add(
-                            createSourceTile(
-                              title: source.runtimeType.toString(),
-                              subtitle: path,
-                              source: source,
-                            ),
-                          );
+                          sourceWidgets.add(SourceTile(
+                            key: UniqueKey(),
+                            setSource: () => _setSource(source),
+                            play: () => _play(source),
+                            removeSource: _removeSourceWidget,
+                            source: source,
+                            onEditSave: () => saveAndUpdate(),
+                            title: source.runtimeType.toString(),
+                            subtitle: path,
+                            sourceNotifier: currentlyPlayingSource,
+                            playerState: _playerState,
+                          ));
+                          setSourceWidgetsIndexes();
                           setState(() {});
                           save();
                         },

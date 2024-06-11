@@ -19,7 +19,7 @@ class ProjectManager {
 
       for (var widget in sourceWidgets) {
         if (widget is SourceTile) {
-          Source source = widget.getSource();
+          Source source = widget.source;
 
           //debugPrint("Saving widget: $widget");
           //debugPrint("Saving source: $source");

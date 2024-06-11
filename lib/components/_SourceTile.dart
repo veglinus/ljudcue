@@ -6,46 +6,78 @@ class SourceTile extends StatelessWidget {
   final void Function() setSource;
   final void Function() play;
   final void Function(Widget sourceWidget) removeSource;
-  final Source Function() getSource;
+  final Source source;
   final void Function() onEditSave;
   String title;
   String? subtitle;
-  final Key? setSourceKey;
+  int? index;
+  //final Key? setSourceKey;
   final Key? playKey;
   final Color? buttonColor;
+  final ValueNotifier<Source?> sourceNotifier;
+  final ValueNotifier<PlayerState> playerState;
 
   SourceTile({
     super.key,
     required this.setSource,
     required this.play,
     required this.removeSource,
-    required this.getSource,
+    required this.source,
     required this.onEditSave,
     required this.title,
+    required this.sourceNotifier,
     this.subtitle,
-    this.setSourceKey,
+    this.index,
+    //this.setSourceKey,
     this.playKey,
     this.buttonColor,
+    required this.playerState,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      title: Text(title),
-      subtitle: subtitle != null ? Text(subtitle!) : null,
-      onTap: () {
-        setSource();
+    return ValueListenableBuilder<Source?>(
+      valueListenable: sourceNotifier,
+      builder: (context, value, child) {
+        return ValueListenableBuilder<PlayerState>(
+          valueListenable: playerState,
+          builder: (context, state, child) {
+            Color? tileColor;
+            Widget? leading = index != null ? Text('$index.') : null;
+            if (value == source) {
+              if (state == PlayerState.playing) {
+                tileColor = Colors.green.shade200;
+                leading = const Icon(Icons.play_arrow_outlined);
+              } else if (state == PlayerState.paused) {
+                tileColor = Colors.orange.shade200;
+                leading = const Icon(Icons.pause_outlined);
+              } else {
+                tileColor = Colors.yellow.shade200;
+              }
+            }
+
+            return ListTile(
+              tileColor: tileColor,
+              leading: leading,
+              title: Text(title),
+              subtitle: subtitle != null ? Text(subtitle!) : null,
+              onTap: () {
+                setSource();
+              },
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    onPressed: () => edit(context),
+                    icon: const Icon(Icons.edit),
+                    //color: Theme.of(context).primaryColor,
+                  ),
+                ],
+              ),
+            );
+          },
+        );
       },
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            onPressed: () => edit(context),
-            icon: const Icon(Icons.edit),
-            color: Theme.of(context).primaryColor,
-          ),
-        ],
-      ),
     );
   }
 

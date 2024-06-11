@@ -19,16 +19,12 @@ class _ControlsTabState extends State<ControlsTab> {
   final _playerState = ValueNotifier<PlayerState>(PlayerState.stopped);
   Duration? _duration;
   Duration? _position;
-
   StreamSubscription? _durationSubscription;
   StreamSubscription? _positionSubscription;
   StreamSubscription? _playerCompleteSubscription;
   StreamSubscription? _playerStateChangeSubscription;
-
   String get _durationText => _duration?.toString().split('.').first ?? '';
-
   String get _positionText => _position?.toString().split('.').first ?? '';
-
   AudioPlayer get player => widget.player;
 
   Future<void> _update(Future<void> Function() fn) async {
@@ -168,6 +164,7 @@ class _ControlsTabState extends State<ControlsTab> {
 
     _playerStateChangeSubscription =
         player.onPlayerStateChanged.listen((state) {
+      //debugPrint("onPlayerStateChanged: $state");
       setState(() {
         _playerState.value = state;
       });
