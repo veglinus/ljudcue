@@ -5,17 +5,13 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:playsound/components/_SourceTile.dart';
+import 'package:playsound/ProjectManager.dart';
 import 'package:playsound/utils.dart';
 import 'package:playsound/components/_SourceDialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 //import 'dart:html' as html;
-
-const useLocalServer = bool.fromEnvironment('USE_LOCAL_SERVER');
-
-final localhost = kIsWeb || !Platform.isAndroid ? 'localhost' : '10.0.2.2';
-final host = useLocalServer ? 'http://$localhost:8080' : 'https://luan.xyz';
 
 class SourcesTab extends StatefulWidget {
   final AudioPlayer player;
@@ -34,8 +30,11 @@ class _SourcesTabState extends State<SourcesTab>
   AudioPlayer get player => widget.player;
 
   final List<Widget> sourceWidgets = [];
-  final List<String> savedProjects = [];
-  ValueNotifier<String> currentProject = ValueNotifier<String>('');
+  //final List<String> savedProjects = [];
+  //ValueNotifier<String> currentProject = ValueNotifier<String>('');
+  int rebuildCounter = 0;
+
+  ProjectManager project = ProjectManager();
 
   Future<void> _setSource(Source source) async {
     try {
@@ -73,137 +72,21 @@ class _SourcesTabState extends State<SourcesTab>
     toast('Source removed.');
   }
 
-  Future<void> saveWidgetData() async {
-    try {
-      List<Map> saveData = [];
+  Future<void> saveAndUpdate() async {
+    await save();
+    setState(() {
+      rebuildCounter++;
+    });
+  }
 
-      for (var widget in sourceWidgets) {
-        if (widget is SourceTile) {
-          Source source = widget.getSource();
-
-          debugPrint("Saving widget: $widget");
-          debugPrint("Saving source: $source");
-
-          Map<String, dynamic> widgetData = {
-            //'setSourceKey': widget.setSourceKey.toString(),
-            'title': widget.title,
-            'subtitle': widget.subtitle,
-            'type': source.runtimeType.toString(),
-          };
-          if (source is DeviceFileSource) {
-            widgetData['source'] = source.path;
-          } else if (source is UrlSource) {
-            widgetData['source'] = source.url;
-          } else if (source is AssetSource) {
-            widgetData['source'] = source.path;
-          } else {
-            debugPrint("Invalid source type: ${source.runtimeType}");
-          }
-
-          saveData.add(widgetData);
-        }
-      }
-
-      String json = jsonEncode(saveData);
-
-      // TODO: Implement app file saving
-
-      if (kIsWeb) {
-        // Web file saving logic
-      } else {
-        if (currentProject.value.isEmpty) {
-          String? filePath = await FilePicker.platform.saveFile(
-            dialogTitle: 'Save your session', // custom title for the dialog
-            bytes: utf8.encode(json), // data to be saved (for mobile platforms)
-            fileName: 'session.json', // default file name
-            //initialDirectory: '/path/to/initial/directory', // initial directory (for desktop platforms)
-            type: FileType.any, // file type filter
-            allowedExtensions: ['json'], // allowed extensions
-            lockParentWindow: true, // lock parent window (for Windows desktop)
-          );
-
-          if (filePath != null) {
-            File file = File(filePath);
-            await file.writeAsBytes(utf8.encode(json));
-            debugPrint('File saved at: $filePath');
-
-            setState(() {
-              savedProjects.add(filePath);
-            });
-            final prefs = await SharedPreferences.getInstance();
-            prefs.setStringList('savedProjects', savedProjects);
-          } else {
-            // The user aborted the file picker
-            debugPrint('File save aborted');
-          }
-        } else {
-          File file = File(currentProject.value);
-          await file.writeAsBytes(utf8.encode(json));
-          debugPrint('File saved at: $currentProject');
-        }
-      }
-    } catch (e) {
-      debugPrint("Error saving session: $e");
-    }
+  Future<void> save() async {
+    project.save(sourceWidgets);
   }
 
   Future<void> loadProjectFromStorage() async {
-    /**
-     * Loads project with file picker from storage
-     */
-    try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-          type: FileType.custom,
-          allowedExtensions: ['json'],
-          allowMultiple: false,
-          withData: true);
-
-      if (result != null && result.files.isNotEmpty) {
-        final fileBytes = result.files.first.bytes;
-        String jsonData = String.fromCharCodes(fileBytes!);
-
-        debugPrint("Loaded data: $jsonData");
-        setDataToView(jsonData);
-        currentProject.value = result.files.first.path!;
-      }
-    } catch (e) {
-      debugPrint("Error loading session: $e");
-    } finally {
-      if (context.mounted) {
-        Navigator.of(context).pop();
-      }
-    }
-  }
-
-  Future<void> loadProject(String filePath) async {
-    /**
-     * Loads project with provided file path
-     */
-    try {
-      File file = File(filePath);
-      if (!file.existsSync()) {
-        debugPrint('File does not exist: $filePath');
-        return;
-      }
-
-      String json = await file.readAsString();
-      setDataToView(json);
-      currentProject.value = filePath;
-    } catch (e) {
-      debugPrint("Error loading project: $e");
-    }
-  }
-
-  void checkIfSavedToRecent() async {
-    // If the project is not in the savedProjects list, add it
-    if (!savedProjects.contains(currentProject.value)) {
-      setState(() {
-        savedProjects.add(currentProject.value);
-      });
-
-      // And save the list of saved projects to shared preferences
-      final prefs = await SharedPreferences.getInstance();
-      prefs.setStringList('savedProjects', savedProjects);
+    String? jsonData = await project.loadProjectFromStorage();
+    if (jsonData != null) {
+      setDataToView(jsonData);
     }
   }
 
@@ -211,14 +94,14 @@ class _SourcesTabState extends State<SourcesTab>
     List<dynamic> data = jsonDecode(jsonData);
 
     for (var item in data) {
-      debugPrint("Drawing widget: $item");
-      Widget widget = await getCorrectWidget2(item);
+      //debugPrint("Drawing widget: $item");
+      Widget widget = await getCorrectWidget(item);
       sourceWidgets.add(widget);
     }
     setState(() {});
   }
 
-  Future<Widget> getCorrectWidget2(dynamic input) async {
+  Future<Widget> getCorrectWidget(dynamic input) async {
     Source source;
     bool invalid = false;
 
@@ -239,7 +122,7 @@ class _SourcesTabState extends State<SourcesTab>
     }
 
     if (invalid) {
-      return _createSourceTile(
+      return createSourceTile(
         //setSourceKey: const Key('setSource-asset-invalid'),
         title: "Invalid Asset - ${input['title']}",
         subtitle: input['subtitle'],
@@ -247,42 +130,13 @@ class _SourcesTabState extends State<SourcesTab>
         buttonColor: Colors.red,
       );
     } else {
-      return _createSourceTile(
+      return createSourceTile(
         //setSourceKey: input['setSourceKey'],
         title: input['title'],
         subtitle: input['subtitle'],
         source: source,
       );
     }
-  }
-
-  Widget _createSourceTile({
-    required String title,
-    required String subtitle,
-    required Source source,
-    Key? setSourceKey,
-    Color? buttonColor,
-    Key? playKey,
-  }) =>
-      SourceTile(
-        setSource: () => _setSource(source),
-        play: () => _play(source),
-        removeSource: _removeSourceWidget,
-        getSource: () => source,
-        title: title,
-        subtitle: subtitle,
-        setSourceKey: setSourceKey,
-        playKey: playKey,
-        buttonColor: buttonColor,
-      );
-
-  Future<void> _setSourceBytesAsset(
-    Future<void> Function(Source) fun, {
-    required String asset,
-    String? mimeType,
-  }) async {
-    final bytes = await AudioCache.instance.loadAsBytes(asset);
-    await fun(BytesSource(bytes, mimeType: mimeType));
   }
 
 /*
@@ -295,35 +149,51 @@ class _SourcesTabState extends State<SourcesTab>
     await fun(BytesSource(bytes, mimeType: mimeType));
   }*/
 
-  Future<void> _loadSavedProjects() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedProjectsFromPrefs = prefs.getStringList('savedProjects') ?? [];
-    setState(() {
-      savedProjects.addAll(savedProjectsFromPrefs);
-    });
-  }
+  Widget createSourceTile({
+    required String title,
+    required String subtitle,
+    required Source source,
+    Key? setSourceKey,
+    Color? buttonColor,
+    Key? playKey,
+  }) =>
+      SourceTile(
+        setSource: () => _setSource(source),
+        play: () => _play(source),
+        removeSource: _removeSourceWidget,
+        getSource: () => source,
+        onEditSave: () => saveAndUpdate(),
+        title: title,
+        subtitle: subtitle,
+        setSourceKey: setSourceKey,
+        playKey: playKey,
+        buttonColor: buttonColor,
+      );
 
   Future<void> _loadMostRecentProject() async {
     final prefs = await SharedPreferences.getInstance();
     final currentProjectFromPrefs = prefs.getString('currentProject');
     if (currentProjectFromPrefs != null) {
-      debugPrint("Loading latest project from prefs..");
-      loadProject(currentProjectFromPrefs);
-      toast("Loaded latest opened project! $currentProjectFromPrefs");
+      debugPrint("Loading latest saved project");
+      String? jsonData = await project.loadProject(currentProjectFromPrefs);
+      if (jsonData != null) {
+        setDataToView(jsonData);
+        toast("Loaded latest opened project! $currentProjectFromPrefs");
+      }
     }
   }
 
   @override
   void initState() {
     super.initState();
-    _loadSavedProjects();
+    project.loadSavedProjects();
     _loadMostRecentProject();
     //addTestWidgets();
 
-    currentProject.addListener(() async {
-      checkIfSavedToRecent();
+    project.currentProject.addListener(() async {
+      project.checkIfSavedToRecent();
       final prefs = await SharedPreferences.getInstance();
-      prefs.setString('currentProject', currentProject.value);
+      prefs.setString('currentProject', project.currentProject.value);
     });
   }
 
@@ -349,7 +219,7 @@ class _SourcesTabState extends State<SourcesTab>
                           child: const Text('Save Session'),
                           onPressed: () {
                             debugPrint('Saving session');
-                            saveWidgetData();
+                            save();
                           },
                         ),
                         const SizedBox(width: 16),
@@ -363,44 +233,84 @@ class _SourcesTabState extends State<SourcesTab>
                         ),
                       ],
                     ),
-                    Column(
-                      children: sourceWidgets
-                          .expand((element) => [element, const Divider()])
-                          .toList(),
-                    ),
+                    Column(key: ValueKey(rebuildCounter), children: [
+                      for (var i = 0; i < sourceWidgets.length; i++) ...[
+                        sourceWidgets[i],
+                        const Divider(),
+                      ],
+                    ]),
                   ],
                 ),
               ),
             ),
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: FloatingActionButton(
-            child: const Icon(Icons.add),
-            onPressed: () {
-              dialog(
-                SourceDialog(
-                  onAdd: (Source source, String path) {
-                    setState(() {
-                      sourceWidgets.add(
-                        _createSourceTile(
-                          title: source.runtimeType.toString(),
-                          subtitle: path,
-                          source: source,
-                        ),
-                      );
-                    });
+        Align(
+          alignment: Alignment.bottomRight,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: SpeedDial(
+              icon: Icons.add,
+              children: [
+                SpeedDialChild(
+                  child: const Icon(Icons.music_note),
+                  label: 'File',
+                  onTap: () async {
+                    try {
+                      // Handle tap for the first button
+                      final result = await FilePicker.platform.pickFiles();
+                      final path = result?.files.single.path;
+
+                      if (path != null) {
+                        sourceWidgets.add(
+                          createSourceTile(
+                            title: 'Device File',
+                            subtitle: path,
+                            source: DeviceFileSource(path),
+                          ),
+                        );
+                        setState(() {});
+                        save();
+                      } else {
+                        debugPrint('No file selected');
+                      }
+                    } catch (e) {
+                      debugPrint('Error picking file: $e');
+                    }
                   },
                 ),
-              );
-            },
+                SpeedDialChild(
+                  child: const Icon(Icons.add),
+                  label: 'Advanced',
+                  onTap: () {
+                    dialog(
+                      SourceDialog(
+                        onAdd: (Source source, String path) {
+                          sourceWidgets.add(
+                            createSourceTile(
+                              title: source.runtimeType.toString(),
+                              subtitle: path,
+                              source: source,
+                            ),
+                          );
+                          setState(() {});
+
+                          save();
+                        },
+                      ),
+                    );
+                    // Handle tap for the second button
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ],
     );
   }
 
+  // TODO: Build into a menu or something instead (drawer)
   Future<void> _showProjectPicker() async {
     double screenWidth = MediaQuery.of(context).size.width;
     double screenHeight = MediaQuery.of(context).size.height;
@@ -409,48 +319,78 @@ class _SourcesTabState extends State<SourcesTab>
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Pick a project'),
-          content: SizedBox(
-            width: screenWidth * 0.6,
-            height: screenHeight * 0.6,
-            child: Column(
-              children: <Widget>[
-                ElevatedButton(
-                  onPressed: loadProjectFromStorage,
-                  child: const Text("Load project from storage"),
-                ),
-                Expanded(
-                  child: savedProjects.isNotEmpty
-                      ? ListView.builder(
-                          itemCount: savedProjects.length,
-                          itemBuilder: (BuildContext context, int index) {
-                            return ListTile(
-                              title: Text(savedProjects[index]),
-                              onTap: () {
-                                Navigator.of(context).pop(savedProjects[index]);
-                              },
-                            );
-                          },
-                        )
-                      : const Center(child: Text("No projects found")),
-                ),
-              ],
+            title: const Text('Pick a project'),
+            content: SizedBox(
+              width: screenWidth * 0.6,
+              height: screenHeight * 0.6,
+              child: Column(
+                children: <Widget>[
+                  ElevatedButton(
+                    onPressed: () async {
+                      await loadProjectFromStorage();
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                      }
+                    },
+                    child: const Text("Load project from storage"),
+                  ),
+                  Expanded(
+                    child: project.savedProjects.isNotEmpty
+                        ? ListView.builder(
+                            itemCount: project.savedProjects.length,
+                            itemBuilder: (BuildContext context, int index) {
+                              return ListTile(
+                                title: Text(project.savedProjects[index]),
+                                onTap: () {
+                                  Navigator.of(context)
+                                      .pop(project.savedProjects[index]);
+                                },
+                              );
+                            },
+                          )
+                        : const Center(child: Text("No projects found")),
+                  ),
+                ],
+              ),
             ),
-          ),
-        );
+            actions: <Widget>[
+              TextButton(
+                child: const Text('Close'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ]);
       },
     );
 
     if (pickedProject != null) {
       // Load the picked project
-      await loadProject(pickedProject);
+      await project.loadProject(pickedProject);
     }
   }
 
   @override
   bool get wantKeepAlive => true;
 
+  /**
+   * UNUSED FUNCTIONALITY
+   */
+
+  Future<void> _setSourceBytesAsset(
+    Future<void> Function(Source) fun, {
+    required String asset,
+    String? mimeType,
+  }) async {
+    final bytes = await AudioCache.instance.loadAsBytes(asset);
+    await fun(BytesSource(bytes, mimeType: mimeType));
+  }
+
   void addTestWidgets() {
+    const useLocalServer = bool.fromEnvironment('USE_LOCAL_SERVER');
+
+    final localhost = kIsWeb || !Platform.isAndroid ? 'localhost' : '10.0.2.2';
+    final host = useLocalServer ? 'http://$localhost:8080' : 'https://luan.xyz';
     final wavUrl1 = '$host/files/audio/coins.wav';
     final wavUrl2 = '$host/files/audio/laser.wav';
     //final wavUrl3 = '$host/files/audio/coins_non_ascii_и.wav';
@@ -471,37 +411,37 @@ class _SourcesTabState extends State<SourcesTab>
     //const noExtensionAsset = 'coins_no_extension';
 
     sourceWidgets.addAll([
-      _createSourceTile(
+      createSourceTile(
         setSourceKey: const Key('setSource-url-remote-wav-1'),
         title: 'Remote URL WAV 1',
         subtitle: 'coins.wav',
         source: UrlSource(wavUrl1),
       ),
-      _createSourceTile(
+      createSourceTile(
         setSourceKey: const Key('setSource-url-remote-wav-2'),
         title: 'Remote URL WAV 2',
         subtitle: 'laser.wav',
         source: UrlSource(wavUrl2),
       ),
-      _createSourceTile(
+      createSourceTile(
         setSourceKey: const Key('setSource-url-remote-mp3-1'),
         title: 'Remote URL MP3 1 (VBR)',
         subtitle: 'ambient_c_motion.mp3',
         source: UrlSource(mp3Url1),
       ),
-      _createSourceTile(
+      createSourceTile(
         setSourceKey: const Key('setSource-url-remote-mp3-2'),
         title: 'Remote URL MP3 2',
         subtitle: 'nasa_on_a_mission.mp3',
         source: UrlSource(mp3Url2),
       ),
-      _createSourceTile(
+      createSourceTile(
         setSourceKey: const Key('setSource-url-remote-m3u8'),
         title: 'Remote URL M3U8',
         subtitle: 'BBC stream',
         source: UrlSource(m3u8StreamUrl),
       ),
-      _createSourceTile(
+      createSourceTile(
         setSourceKey: const Key('setSource-url-remote-mpga'),
         title: 'Remote URL MPGA',
         subtitle: 'Times stream',
@@ -520,13 +460,13 @@ class _SourcesTabState extends State<SourcesTab>
           subtitle: 'coins.mp3',
           source: UrlSource(mp3DataUri),
         ),*/
-      _createSourceTile(
+      createSourceTile(
         setSourceKey: const Key('setSource-asset-wav'),
         title: 'Asset WAV',
         subtitle: 'laser.wav',
         source: AssetSource(wavAsset2),
       ),
-      _createSourceTile(
+      createSourceTile(
         setSourceKey: const Key('setSource-asset-mp3'),
         title: 'Asset MP3',
         subtitle: 'nasa.mp3',
@@ -549,6 +489,7 @@ class _SourcesTabState extends State<SourcesTab>
           File(wavAsset2).readAsBytesSync(),
           mimeType: 'audio/wav',
         ),
+        onEditSave: save,
         title: 'Bytes - Local',
         subtitle: 'laser.wav',
       ),
@@ -574,7 +515,7 @@ class _SourcesTabState extends State<SourcesTab>
         title: 'Bytes - Remote',
         subtitle: 'ambient.mp3',
       ),*/
-      _createSourceTile(
+      createSourceTile(
         setSourceKey: const Key('setSource-asset-invalid'),
         title: 'Invalid Asset',
         subtitle: 'invalid.txt',

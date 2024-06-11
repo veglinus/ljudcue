@@ -1,6 +1,6 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
-import 'package:playsound/btn.dart';
+import 'package:playsound/components/btn.dart';
 
 extension StateExt<T extends StatefulWidget> on State<T> {
   void toast(String message, {Key? textKey}) {

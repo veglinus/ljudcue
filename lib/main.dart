@@ -35,6 +35,7 @@ class _ExampleAppState extends State<_ExampleApp> {
   void initState() {
     super.initState();
 
+/*
     audioPlayers.asMap().forEach((index, player) {
       streams.add(
         player.onPlayerStateChanged.listen(
@@ -67,7 +68,7 @@ class _ExampleAppState extends State<_ExampleApp> {
           debugPrint("Seek complete!");
         }),
       );
-    });
+    });*/
   }
 
   @override
@@ -78,6 +79,7 @@ class _ExampleAppState extends State<_ExampleApp> {
     super.dispose();
   }
 
+/*
   void _handleAction(PopupAction value) {
     switch (value) {
       case PopupAction.add:
@@ -100,7 +102,7 @@ class _ExampleAppState extends State<_ExampleApp> {
         });
         break;
     }
-  }
+  }*/
 
   @override
   Widget build(BuildContext context) {
