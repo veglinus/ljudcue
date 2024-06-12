@@ -7,15 +7,15 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
-import 'package:playsound/components/_SourceTile.dart';
+import 'package:playsound/sources/SourceTile.dart';
 import 'package:playsound/ProjectManager.dart';
 import 'package:playsound/main.dart';
-import 'package:playsound/utils.dart';
-import 'package:playsound/components/_SourceDialog.dart';
+import 'package:playsound/sources/_WidgetParser.dart';
+import 'package:playsound/components/utils.dart';
+import 'package:playsound/sources/_SourceDialog.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path/path.dart' as path;
-import 'package:http/http.dart' as http;
 
 class SourcesTab extends StatefulWidget {
   final AudioPlayer player;
@@ -42,37 +42,6 @@ class SourcesTabState extends State<SourcesTab>
   StreamSubscription? _playerStateChangeSubscription;
   bool isReorderingEnabled = false;
 
-  /* PLAYER METHODS */
-  Future<void> _setSource(Source source) async {
-    try {
-      await player.setSource(source);
-      //await player.stop();
-      currentlyPlayingSource.value = source;
-
-      toast(
-        'Completed setting source.',
-        textKey: const Key('toast-set-source'),
-      );
-    } catch (e) {
-      toast(
-        'Error setting source: $e',
-        textKey: const Key('toast-set-source-error'),
-      );
-    }
-  }
-
-  Future<void> _play(Source source) async {
-    //await player.stop();
-    //await player.play(source);
-    await player.resume();
-
-    toast(
-      'Set and playing source.',
-      textKey: const Key('toast-set-play'),
-    );
-  }
-  /* END OF PLAYER METHODS */
-
   /* METHODS USED BY SOURCETILE */
   Future<void> _removeSourceWidget(Widget sourceWidget) async {
     setState(() {
@@ -93,74 +62,6 @@ class SourcesTabState extends State<SourcesTab>
     project.save(sourceWidgets, project.currentProject.value);
   }
 
-  // TODO: Move to separate file
-  Future<void> saveAs() async {
-    debugPrint('Saving session as');
-    String projectName = '';
-    String? folderPath;
-
-    await showDialog<String>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Enter project name'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              TextField(
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Project name',
-                ),
-                onChanged: (value) => projectName = value,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                child: const Text('Pick a folder'),
-                onPressed: () async {
-                  folderPath = await FilePicker.platform.getDirectoryPath(
-                    dialogTitle:
-                        "Pick where to save project (a new folder will be made)",
-                    lockParentWindow: true,
-                  );
-                },
-              ),
-            ],
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: const Text('Save'),
-              onPressed: () {
-                Navigator.of(context).pop(projectName);
-              },
-            ),
-          ],
-        );
-      },
-    );
-
-    if (projectName.isNotEmpty) {
-      project.save(sourceWidgets, projectName,
-          saveAs: true, folderPath: folderPath);
-    }
-  }
-
-  void load() {
-    project.showProjectPicker(context);
-  }
-
-  void reorderToggle() {
-    setState(() {
-      isReorderingEnabled = !isReorderingEnabled;
-    });
-  }
-
   Future<void> _loadMostRecentProject() async {
     String? jsonData = await project.loadMostRecentProject();
     if (jsonData != null) {
@@ -176,7 +77,16 @@ class SourcesTabState extends State<SourcesTab>
     int index = 1;
     for (var item in data) {
       //debugPrint("Drawing widget: $item");
-      SourceTile widget = await getCorrectWidget(item);
+      SourceTile widget = await getCorrectWidget(
+        item,
+        player,
+        project,
+        _removeSourceWidget,
+        saveAndUpdate,
+        _playerState,
+        currentlyPlayingSource,
+      );
+
       widget.index = index++;
       sourceWidgets.add(widget);
     }
@@ -186,107 +96,6 @@ class SourcesTabState extends State<SourcesTab>
         rebuildCounter++;
       });
     }
-  }
-
-  // TODO: Move this to separate file
-  Future<SourceTile> getCorrectWidget(dynamic input) async {
-    Source source;
-    bool invalid = false;
-
-    // Fix for projects that are copied (files are in relation to folder)
-
-    switch (input['type']) {
-      case 'AssetSource':
-        bool assetExists = await isAssetExists(input['source']);
-        if (!assetExists) {
-          invalid = true;
-        }
-        source = AssetSource(input['source']);
-        break;
-      case 'DeviceFileSource':
-        if (input['projectCopied'] != null) {
-          String dirpath = path.dirname(project.currentProject.value);
-          String newPath = "$dirpath/${input['source']}";
-          input['source'] = newPath;
-        }
-        File file = File(input['source']);
-        bool fileExists = await file.exists();
-        if (!fileExists) {
-          invalid = true;
-        }
-        source = DeviceFileSource(input['source']);
-        break;
-      case 'UrlSource':
-        bool isPlayable = await isUrlPlayable(input['source']);
-        if (!isPlayable) {
-          invalid = true;
-        }
-        source = UrlSource(input['source']);
-        break;
-      default:
-        source = AssetSource('Invalid asset');
-        invalid = true;
-        break;
-    }
-
-    if (invalid) {
-      return SourceTile(
-        key: UniqueKey(),
-        setSource: () => _setSource(source),
-        play: () => _play(source),
-        removeSource: _removeSourceWidget,
-        source: source,
-        onEditSave: () => saveAndUpdate(),
-        //setSourceKey: const Key('setSource-asset-invalid'),
-        title: "Invalid Asset - ${input['title']}",
-        subtitle: input['subtitle'],
-        buttonColor: Colors.red,
-        sourceNotifier: currentlyPlayingSource,
-        playerState: _playerState,
-      );
-    } else {
-      return SourceTile(
-        key: UniqueKey(),
-        setSource: () => _setSource(source),
-        play: () => _play(source),
-        removeSource: _removeSourceWidget,
-        source: source,
-        onEditSave: () => saveAndUpdate(),
-        //setSourceKey: input['setSourceKey'],
-        title: input['title'],
-        subtitle: input['subtitle'],
-        sourceNotifier: currentlyPlayingSource,
-        playerState: _playerState,
-      );
-    }
-  }
-
-  Future<bool> isAssetExists(String assetName) async {
-    try {
-      await rootBundle.load(assetName);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  Future<bool> isUrlPlayable(String url) async {
-    try {
-      final response = await http.head(Uri.parse(url));
-
-      if (response.statusCode == 200) {
-        final contentType = response.headers['content-type'];
-        debugPrint("Content type of $url: $contentType");
-
-        if (contentType != null) {
-          // Maybe be more specific here, rn as long as link is valid file is valid
-          return true;
-        }
-      }
-    } catch (e) {
-      return false;
-    }
-    return false;
   }
 
   Future<void> setSourceWidgetsIndexes() async {
@@ -390,80 +199,84 @@ class SourcesTabState extends State<SourcesTab>
             ),
           ),
         ),
-        Align(
-          // TODO: Move this to separate file
-          alignment: Alignment.bottomRight,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: SpeedDial(
-              icon: Icons.add,
-              children: [
-                SpeedDialChild(
-                  child: const Icon(Icons.music_note),
-                  label: 'File',
-                  onTap: () async {
-                    try {
-                      // Handle tap for the first button
-                      final result = await FilePicker.platform.pickFiles();
-                      final path = result?.files.single.path;
-
-                      if (path != null) {
-                        sourceWidgets.add(SourceTile(
-                          key: UniqueKey(),
-                          setSource: () => _setSource(DeviceFileSource(path)),
-                          play: () => _play(DeviceFileSource(path)),
-                          removeSource: _removeSourceWidget,
-                          source: DeviceFileSource(path),
-                          onEditSave: () => saveAndUpdate(),
-                          title: 'Device File',
-                          subtitle: path,
-                          sourceNotifier: currentlyPlayingSource,
-                          playerState: _playerState,
-                        ));
-                        setSourceWidgetsIndexes();
-                        setState(() {});
-                        save();
-                      } else {
-                        debugPrint('No file selected');
-                      }
-                    } catch (e) {
-                      debugPrint('Error picking file: $e');
-                    }
-                  },
-                ),
-                SpeedDialChild(
-                  child: const Icon(Icons.add),
-                  label: 'Advanced',
-                  onTap: () {
-                    dialog(
-                      SourceDialog(
-                        onAdd: (Source source, String path) {
-                          sourceWidgets.add(SourceTile(
-                            key: UniqueKey(),
-                            setSource: () => _setSource(source),
-                            play: () => _play(source),
-                            removeSource: _removeSourceWidget,
-                            source: source,
-                            onEditSave: () => saveAndUpdate(),
-                            title: source.runtimeType.toString(),
-                            subtitle: path,
-                            sourceNotifier: currentlyPlayingSource,
-                            playerState: _playerState,
-                          ));
-                          setSourceWidgetsIndexes();
-                          setState(() {});
-                          save();
-                        },
-                      ),
-                    );
-                    // Handle tap for the second button
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
+        CustomFAB(),
       ],
+    );
+  }
+
+  Align CustomFAB() {
+    return Align(
+      // TODO: Move this to separate file
+      alignment: Alignment.bottomRight,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: SpeedDial(
+          icon: Icons.add,
+          children: [
+            SpeedDialChild(
+              child: const Icon(Icons.music_note),
+              label: 'File',
+              onTap: () async {
+                try {
+                  // Handle tap for the first button
+                  final result = await FilePicker.platform.pickFiles();
+                  final path = result?.files.single.path;
+
+                  if (path != null) {
+                    sourceWidgets.add(SourceTile(
+                      key: UniqueKey(),
+                      setSource: () => player.setSource(DeviceFileSource(path)),
+                      play: () => player.play(DeviceFileSource(path)),
+                      removeSource: _removeSourceWidget,
+                      source: DeviceFileSource(path),
+                      onEditSave: () => saveAndUpdate(),
+                      title: 'Device File',
+                      subtitle: path,
+                      sourceNotifier: currentlyPlayingSource,
+                      playerState: _playerState,
+                    ));
+                    setSourceWidgetsIndexes();
+                    setState(() {});
+                    save();
+                  } else {
+                    debugPrint('No file selected');
+                  }
+                } catch (e) {
+                  debugPrint('Error picking file: $e');
+                }
+              },
+            ),
+            SpeedDialChild(
+              child: const Icon(Icons.add),
+              label: 'Advanced',
+              onTap: () {
+                dialog(
+                  SourceDialog(
+                    onAdd: (Source source, String path) {
+                      sourceWidgets.add(SourceTile(
+                        key: UniqueKey(),
+                        setSource: () => player.setSource(source),
+                        play: () => player.play(source),
+                        removeSource: _removeSourceWidget,
+                        source: source,
+                        onEditSave: () => saveAndUpdate(),
+                        title: source.runtimeType.toString(),
+                        subtitle: path,
+                        sourceNotifier: currentlyPlayingSource,
+                        playerState: _playerState,
+                      ));
+                      setSourceWidgetsIndexes();
+                      setState(() {});
+                      save();
+                    },
+                  ),
+                );
+                // Handle tap for the second button
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 

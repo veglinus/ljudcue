@@ -4,7 +4,8 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:playsound/SettingsPage.dart';
 import 'package:playsound/controls.dart';
-import 'package:playsound/sources.dart';
+import 'package:playsound/sources/_SaveAs.dart';
+import 'package:playsound/sources/Sources.dart';
 import 'package:provider/provider.dart';
 
 typedef OnError = void Function(Exception exception);
@@ -61,14 +62,17 @@ class _PlaySoundState extends State<_PlaySound> {
                 myKey.currentState?.save();
                 break;
               case 'saveAs':
-                myKey.currentState?.saveAs();
+                saveAs(context, myKey.currentState!.project,
+                    myKey.currentState!.sourceWidgets);
                 break;
               case 'load':
-                myKey.currentState?.load();
+                myKey.currentState?.project.showProjectPicker(context);
                 break;
               case 'reorder':
-                myKey.currentState?.reorderToggle();
                 isReorderingEnabled = !isReorderingEnabled;
+                setState(() {
+                  myKey.currentState!.isReorderingEnabled = isReorderingEnabled;
+                });
                 break;
               default:
                 break;
