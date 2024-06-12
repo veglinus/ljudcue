@@ -59,7 +59,7 @@ class SourceTile extends StatelessWidget {
             return ListTile(
               tileColor: tileColor,
               leading: leading,
-              title: Text(title),
+              title: Text(title, style: TextStyle(color: buttonColor)),
               subtitle: subtitle != null ? Text(subtitle!) : null,
               onTap: () {
                 setSource();

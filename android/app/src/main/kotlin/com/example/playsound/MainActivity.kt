@@ -1,4 +1,4 @@
-package com.example.playsound
+package com.linush.playsound
 
 import io.flutter.embedding.android.FlutterActivity
 

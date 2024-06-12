@@ -12,64 +12,38 @@ class ProjectManager {
   final List<String> savedProjects = [];
   ValueNotifier<String> currentProject = ValueNotifier<String>('');
 
-  Future<void> save(List<Widget> sourceWidgets) async {
+  Future<void> save(List<Widget> sourceWidgets, String projectName,
+      {bool? saveAs, String? folderPath}) async {
     try {
-      debugPrint("Saving session..");
-      List<Map> saveData = [];
-
-      for (var widget in sourceWidgets) {
-        if (widget is SourceTile) {
-          Source source = widget.source;
-
-          //debugPrint("Saving widget: $widget");
-          //debugPrint("Saving source: $source");
-
-          Map<String, dynamic> widgetData = {
-            //'setSourceKey': widget.setSourceKey.toString(),
-            'title': widget.title,
-            'subtitle': widget.subtitle,
-            'type': source.runtimeType.toString(),
-          };
-          if (source is DeviceFileSource) {
-            widgetData['source'] = source.path;
-          } else if (source is UrlSource) {
-            widgetData['source'] = source.url;
-          } else if (source is AssetSource) {
-            widgetData['source'] = source.path;
-          } else {
-            debugPrint("Invalid source type: ${source.runtimeType}");
-          }
-
-          saveData.add(widgetData);
-        }
-      }
-
-      String json = jsonEncode(saveData);
-
       // TODO: Implement android/ios app file saving
 
       if (kIsWeb) {
         // Web file saving logic
       } else {
-        if (currentProject.value.isEmpty) {
-          String? filePath = await FilePicker.platform.saveFile(
-            dialogTitle: 'Save your session', // custom title for the dialog
-            bytes: utf8.encode(json), // data to be saved (for mobile platforms)
-            fileName: 'session.json', // default file name
-            //initialDirectory: '/path/to/initial/directory', // initial directory (for desktop platforms)
-            type: FileType.any, // file type filter
-            allowedExtensions: ['json'], // allowed extensions
-            lockParentWindow: true, // lock parent window (for Windows desktop)
-          );
+        if (currentProject.value.isEmpty ||
+            saveAs == true && folderPath != null) {
+          if (folderPath != null) {
+            String projectFolderPath = '$folderPath/$projectName';
 
-          if (filePath != null) {
-            File file = File(filePath);
+            // Create the new project folder
+            await Directory(projectFolderPath).create(recursive: true);
+
+            // Parse widgets into JSON and get files to copy
+            var (json, filesToCopy) = await widgetsIntoJson(sourceWidgets);
+
+            // Create the data file
+            File file = File('$projectFolderPath/data.json');
             await file.writeAsBytes(utf8.encode(json));
-            debugPrint('File saved at: $filePath');
 
-            //setState(() {
-            savedProjects.add(filePath);
-            //});
+            // Copy the files
+            for (var fileToCopy in filesToCopy) {
+              File file = File(fileToCopy);
+              String fileName = file.path.split('/').last;
+              await file.copy('$projectFolderPath/$fileName');
+            }
+            debugPrint('Files saved at: $folderPath');
+
+            savedProjects.add(folderPath);
             final prefs = await SharedPreferences.getInstance();
             prefs.setStringList('savedProjects', savedProjects);
           } else {
@@ -79,6 +53,7 @@ class ProjectManager {
         } else {
           // Autosave in current project file
           File file = File(currentProject.value);
+          var (json, _) = await widgetsIntoJson(sourceWidgets);
           await file.writeAsBytes(utf8.encode(json));
           debugPrint('Autosaved: ${currentProject.value}');
         }
@@ -88,6 +63,43 @@ class ProjectManager {
     } finally {
       debugPrint("Done saving session!");
     }
+  }
+
+  Future<(String, List<String>)> widgetsIntoJson(
+      List<Widget> sourceWidgets) async {
+    debugPrint("Parsing widgets into json..");
+    List<Map> saveData = [];
+    List<String> filesToCopy = [];
+    for (var widget in sourceWidgets) {
+      if (widget is SourceTile) {
+        Source source = widget.source;
+        Map<String, dynamic> widgetData = {
+          //'setSourceKey': widget.setSourceKey.toString(),
+          'title': widget.title,
+          'subtitle': widget.subtitle,
+          'type': source.runtimeType.toString(),
+        };
+        if (source is DeviceFileSource) {
+          filesToCopy.add(source.path);
+          String fileName = source.path.split("/").last;
+          debugPrint("Copying file: $fileName");
+
+          widgetData['source'] = fileName;
+          widgetData['projectCopied'] = true;
+        } else if (source is UrlSource) {
+          widgetData['source'] = source.url;
+        } else if (source is AssetSource) {
+          widgetData['source'] = source.path;
+        } else {
+          debugPrint("Invalid source type: ${source.runtimeType}");
+        }
+
+        saveData.add(widgetData);
+      }
+    }
+
+    String json = jsonEncode(saveData);
+    return (json, filesToCopy);
   }
 
   Future<String?> loadProjectFromStorage() async {

@@ -164,7 +164,6 @@ class _ControlsTabState extends State<ControlsTab> {
 
     _playerStateChangeSubscription =
         player.onPlayerStateChanged.listen((state) {
-      //debugPrint("onPlayerStateChanged: $state");
       setState(() {
         _playerState.value = state;
       });

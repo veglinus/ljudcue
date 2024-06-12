@@ -1,15 +1,21 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:playsound/components/_SourceTile.dart';
 import 'package:playsound/ProjectManager.dart';
+import 'package:playsound/main.dart';
 import 'package:playsound/utils.dart';
 import 'package:playsound/components/_SourceDialog.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path/path.dart' as path;
+import 'package:http/http.dart' as http;
 
 class SourcesTab extends StatefulWidget {
   final AudioPlayer player;
@@ -20,10 +26,10 @@ class SourcesTab extends StatefulWidget {
   });
 
   @override
-  State<SourcesTab> createState() => _SourcesTabState();
+  State<SourcesTab> createState() => SourcesTabState();
 }
 
-class _SourcesTabState extends State<SourcesTab>
+class SourcesTabState extends State<SourcesTab>
     with AutomaticKeepAliveClientMixin<SourcesTab> {
   AudioPlayer get player => widget.player;
   final List<SourceTile> sourceWidgets = [];
@@ -40,7 +46,7 @@ class _SourcesTabState extends State<SourcesTab>
   Future<void> _setSource(Source source) async {
     try {
       await player.setSource(source);
-      await player.stop();
+      //await player.stop();
       currentlyPlayingSource.value = source;
 
       toast(
@@ -84,14 +90,75 @@ class _SourcesTabState extends State<SourcesTab>
   /* END OF SOURCETILE METHODS */
 
   Future<void> save() async {
-    project.save(sourceWidgets);
+    project.save(sourceWidgets, project.currentProject.value);
   }
 
-  Future<void> loadProjectFromStorage() async {
-    String? jsonData = await project.loadProjectFromStorage();
-    if (jsonData != null) {
-      setDataToView(jsonData);
+  // TODO: Move to separate file
+  Future<void> saveAs() async {
+    debugPrint('Saving session as');
+    String projectName = '';
+    String? folderPath;
+
+    await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Enter project name'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              TextField(
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Project name',
+                ),
+                onChanged: (value) => projectName = value,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                child: const Text('Pick a folder'),
+                onPressed: () async {
+                  folderPath = await FilePicker.platform.getDirectoryPath(
+                    dialogTitle:
+                        "Pick where to save project (a new folder will be made)",
+                    lockParentWindow: true,
+                  );
+                },
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Save'),
+              onPressed: () {
+                Navigator.of(context).pop(projectName);
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    if (projectName.isNotEmpty) {
+      project.save(sourceWidgets, projectName,
+          saveAs: true, folderPath: folderPath);
     }
+  }
+
+  void load() {
+    project.showProjectPicker(context);
+  }
+
+  void reorderToggle() {
+    setState(() {
+      isReorderingEnabled = !isReorderingEnabled;
+    });
   }
 
   Future<void> _loadMostRecentProject() async {
@@ -113,7 +180,12 @@ class _SourcesTabState extends State<SourcesTab>
       widget.index = index++;
       sourceWidgets.add(widget);
     }
-    setState(() {});
+
+    if (mounted) {
+      setState(() {
+        rebuildCounter++;
+      });
+    }
   }
 
   // TODO: Move this to separate file
@@ -121,14 +193,34 @@ class _SourcesTabState extends State<SourcesTab>
     Source source;
     bool invalid = false;
 
+    // Fix for projects that are copied (files are in relation to folder)
+
     switch (input['type']) {
       case 'AssetSource':
+        bool assetExists = await isAssetExists(input['source']);
+        if (!assetExists) {
+          invalid = true;
+        }
         source = AssetSource(input['source']);
         break;
       case 'DeviceFileSource':
+        if (input['projectCopied'] != null) {
+          String dirpath = path.dirname(project.currentProject.value);
+          String newPath = "$dirpath/${input['source']}";
+          input['source'] = newPath;
+        }
+        File file = File(input['source']);
+        bool fileExists = await file.exists();
+        if (!fileExists) {
+          invalid = true;
+        }
         source = DeviceFileSource(input['source']);
         break;
       case 'UrlSource':
+        bool isPlayable = await isUrlPlayable(input['source']);
+        if (!isPlayable) {
+          invalid = true;
+        }
         source = UrlSource(input['source']);
         break;
       default:
@@ -169,6 +261,34 @@ class _SourcesTabState extends State<SourcesTab>
     }
   }
 
+  Future<bool> isAssetExists(String assetName) async {
+    try {
+      await rootBundle.load(assetName);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> isUrlPlayable(String url) async {
+    try {
+      final response = await http.head(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final contentType = response.headers['content-type'];
+        debugPrint("Content type of $url: $contentType");
+
+        if (contentType != null) {
+          // Maybe be more specific here, rn as long as link is valid file is valid
+          return true;
+        }
+      }
+    } catch (e) {
+      return false;
+    }
+    return false;
+  }
+
   Future<void> setSourceWidgetsIndexes() async {
     for (var i = 0; i < sourceWidgets.length; i++) {
       sourceWidgets[i].index = i + 1;
@@ -182,11 +302,18 @@ class _SourcesTabState extends State<SourcesTab>
     project.loadSavedProjects();
     _loadMostRecentProject();
     //addTestWidgets();
+    AppBarNotifier appBarNotifier =
+        Provider.of<AppBarNotifier>(context, listen: false);
 
     project.currentProject.addListener(() async {
       project.checkIfSavedToRecent();
+      debugPrint("Current project changed to: ${project.currentProject.value}");
       final prefs = await SharedPreferences.getInstance();
       prefs.setString('currentProject', project.currentProject.value);
+
+      String parentDirectory = path.dirname(project.currentProject.value);
+      String parentFolderName = path.basename(parentDirectory);
+      appBarNotifier.setTitle(parentFolderName);
     });
 
     _playerStateChangeSubscription =
@@ -196,6 +323,14 @@ class _SourcesTabState extends State<SourcesTab>
         _playerState.value = state;
       });
     });
+
+    player.setReleaseMode(ReleaseMode.stop);
+  }
+
+  @override
+  void dispose() {
+    _playerStateChangeSubscription?.cancel();
+    super.dispose();
   }
 
   @override
@@ -211,37 +346,6 @@ class _SourcesTabState extends State<SourcesTab>
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Column(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      ElevatedButton(
-                        child: const Text('Save Session'),
-                        onPressed: () {
-                          debugPrint('Saving session');
-                          save();
-                        },
-                      ),
-                      const SizedBox(width: 16),
-                      ElevatedButton(
-                        child: const Text('Load session'),
-                        onPressed: () {
-                          //debugPrint('Loading session');
-                          //loadWidgetData();
-                          project.showProjectPicker(context);
-                        },
-                      ),
-                      ElevatedButton(
-                          // Create a button for setting reordering on or off
-                          child: Text(isReorderingEnabled
-                              ? 'Disable reordering'
-                              : 'Enable reordering'),
-                          onPressed: () {
-                            setState(() {
-                              isReorderingEnabled = !isReorderingEnabled;
-                            });
-                          }),
-                    ],
-                  ),
                   Expanded(
                     child: ReorderableListView(
                       buildDefaultDragHandles: false,

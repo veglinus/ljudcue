@@ -55,6 +55,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 }),
               ),
             ],
+
+            // TODO: Autosave on/off
             /*
             ListTile(
               title: Text('Setting 1'),
