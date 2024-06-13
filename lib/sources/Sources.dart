@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:playsound/sources/SourceTile.dart';
 import 'package:playsound/ProjectManager.dart';
@@ -70,7 +68,6 @@ class SourcesTabState extends State<SourcesTab>
     }
   }
 
-  // TODO: Move this to separate file
   void setDataToView(String jsonData) async {
     List<dynamic> data = jsonDecode(jsonData);
 
@@ -105,12 +102,7 @@ class SourcesTabState extends State<SourcesTab>
     setState(() {});
   }
 
-  @override
-  void initState() {
-    super.initState();
-    project.loadSavedProjects();
-    _loadMostRecentProject();
-    //addTestWidgets();
+  void _initListeners() {
     AppBarNotifier appBarNotifier =
         Provider.of<AppBarNotifier>(context, listen: false);
 
@@ -132,7 +124,15 @@ class SourcesTabState extends State<SourcesTab>
         _playerState.value = state;
       });
     });
+  }
 
+  @override
+  void initState() {
+    super.initState();
+    project.loadSavedProjects();
+    _loadMostRecentProject();
+    //addTestWidgets();
+    _initListeners();
     player.setReleaseMode(ReleaseMode.stop);
   }
 
@@ -199,12 +199,12 @@ class SourcesTabState extends State<SourcesTab>
             ),
           ),
         ),
-        CustomFAB(),
+        customFAB(),
       ],
     );
   }
 
-  Align CustomFAB() {
+  Align customFAB() {
     return Align(
       // TODO: Move this to separate file
       alignment: Alignment.bottomRight,
@@ -225,14 +225,17 @@ class SourcesTabState extends State<SourcesTab>
                   if (path != null) {
                     sourceWidgets.add(SourceTile(
                       key: UniqueKey(),
-                      setSource: () => player.setSource(DeviceFileSource(path)),
+                      setSource: () {
+                        player.setSource(DeviceFileSource(path));
+                        currentlyPlayingSource.value = DeviceFileSource(path);
+                      },
                       play: () => player.play(DeviceFileSource(path)),
                       removeSource: _removeSourceWidget,
                       source: DeviceFileSource(path),
                       onEditSave: () => saveAndUpdate(),
                       title: 'Device File',
                       subtitle: path,
-                      sourceNotifier: currentlyPlayingSource,
+                      currentlyPlayingSource: currentlyPlayingSource,
                       playerState: _playerState,
                     ));
                     setSourceWidgetsIndexes();
@@ -255,14 +258,18 @@ class SourcesTabState extends State<SourcesTab>
                     onAdd: (Source source, String path) {
                       sourceWidgets.add(SourceTile(
                         key: UniqueKey(),
-                        setSource: () => player.setSource(source),
+                        setSource: () {
+                          debugPrint("set source");
+                          player.setSource(source);
+                          currentlyPlayingSource.value = source;
+                        },
                         play: () => player.play(source),
                         removeSource: _removeSourceWidget,
                         source: source,
                         onEditSave: () => saveAndUpdate(),
                         title: source.runtimeType.toString(),
                         subtitle: path,
-                        sourceNotifier: currentlyPlayingSource,
+                        currentlyPlayingSource: currentlyPlayingSource,
                         playerState: _playerState,
                       ));
                       setSourceWidgetsIndexes();

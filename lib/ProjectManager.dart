@@ -29,7 +29,7 @@ class ProjectManager {
             await Directory(projectFolderPath).create(recursive: true);
 
             // Parse widgets into JSON and get files to copy
-            var (json, filesToCopy) = await widgetsIntoJson(sourceWidgets);
+            var (json, filesToCopy) = await _widgetsIntoJson(sourceWidgets);
 
             // Create the data file
             File file = File('$projectFolderPath/data.json');
@@ -53,7 +53,7 @@ class ProjectManager {
         } else {
           // Autosave in current project file
           File file = File(currentProject.value);
-          var (json, _) = await widgetsIntoJson(sourceWidgets);
+          var (json, _) = await _widgetsIntoJson(sourceWidgets);
           await file.writeAsBytes(utf8.encode(json));
           debugPrint('Autosaved: ${currentProject.value}');
         }
@@ -65,7 +65,7 @@ class ProjectManager {
     }
   }
 
-  Future<(String, List<String>)> widgetsIntoJson(
+  Future<(String, List<String>)> _widgetsIntoJson(
       List<Widget> sourceWidgets) async {
     debugPrint("Parsing widgets into json..");
     List<Map> saveData = [];
@@ -102,7 +102,7 @@ class ProjectManager {
     return (json, filesToCopy);
   }
 
-  Future<String?> loadProjectFromStorage() async {
+  Future<String?> _loadProjectFromStorage() async {
     /**
      * Loads project with file picker from storage
      */
@@ -131,7 +131,7 @@ class ProjectManager {
     }
   }
 
-  Future<String?> loadProject(String filePath) async {
+  Future<String?> _loadProject(String filePath) async {
     /**
      * Loads project with provided file path
      */
@@ -177,14 +177,12 @@ class ProjectManager {
     final currentProjectFromPrefs = prefs.getString('currentProject');
     if (currentProjectFromPrefs != null) {
       debugPrint("Loading latest saved project");
-      String? jsonData = await loadProject(currentProjectFromPrefs);
+      String? jsonData = await _loadProject(currentProjectFromPrefs);
       return jsonData;
     }
     return null;
   }
 
-  // TODO: Build into a menu or something instead (drawer)
-  // or just move it to a separate file
   Future<void> showProjectPicker(BuildContext context) async {
     double screenWidth = MediaQuery.of(context).size.width;
     double screenHeight = MediaQuery.of(context).size.height;
@@ -201,7 +199,7 @@ class ProjectManager {
                 children: <Widget>[
                   ElevatedButton(
                     onPressed: () async {
-                      await loadProjectFromStorage();
+                      await _loadProjectFromStorage();
                       if (context.mounted) {
                         Navigator.of(context).pop();
                       }
@@ -240,7 +238,7 @@ class ProjectManager {
 
     if (pickedProject != null) {
       // Load the picked project
-      await loadProject(pickedProject);
+      await _loadProject(pickedProject);
     }
   }
 }

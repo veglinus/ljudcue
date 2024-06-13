@@ -14,8 +14,8 @@ Future<SourceTile> getCorrectWidget(
   ProjectManager project,
   void Function(Widget sourceWidget) removeSourceWidget,
   void Function() onEditSave,
-  ValueNotifier<PlayerState> playerState,
-  ValueNotifier<Source?> currentlyPlayingSource,
+  final ValueNotifier<PlayerState> playerState,
+  final ValueNotifier<Source?> currentlyPlayingSource,
 ) async {
   Source source;
   bool invalid = false;
@@ -24,7 +24,7 @@ Future<SourceTile> getCorrectWidget(
 
   switch (input['type']) {
     case 'AssetSource':
-      bool assetExists = await isAssetExists(input['source']);
+      bool assetExists = await _isAssetExists(input['source']);
       if (!assetExists) {
         invalid = true;
       }
@@ -44,7 +44,7 @@ Future<SourceTile> getCorrectWidget(
       source = DeviceFileSource(input['source']);
       break;
     case 'UrlSource':
-      bool isPlayable = await isUrlPlayable(input['source']);
+      bool isPlayable = await _isUrlPlayable(input['source']);
       if (!isPlayable) {
         invalid = true;
       }
@@ -59,7 +59,11 @@ Future<SourceTile> getCorrectWidget(
   if (invalid) {
     return SourceTile(
       key: UniqueKey(),
-      setSource: () => player.setSource(source),
+      setSource: () {
+        debugPrint("set source");
+        player.setSource(source);
+        currentlyPlayingSource.value = source;
+      },
       play: () => player.play(source),
       removeSource: removeSourceWidget,
       source: source,
@@ -68,13 +72,17 @@ Future<SourceTile> getCorrectWidget(
       title: "Invalid Asset - ${input['title']}",
       subtitle: input['subtitle'],
       buttonColor: Colors.red,
-      sourceNotifier: currentlyPlayingSource,
+      currentlyPlayingSource: currentlyPlayingSource,
       playerState: playerState,
     );
   } else {
     return SourceTile(
       key: UniqueKey(),
-      setSource: () => player.setSource(source),
+      setSource: () {
+        debugPrint("set source");
+        player.setSource(source);
+        currentlyPlayingSource.value = source;
+      },
       play: () => player.play(source),
       removeSource: removeSourceWidget,
       source: source,
@@ -82,13 +90,13 @@ Future<SourceTile> getCorrectWidget(
       //setSourceKey: input['setSourceKey'],
       title: input['title'],
       subtitle: input['subtitle'],
-      sourceNotifier: currentlyPlayingSource,
+      currentlyPlayingSource: currentlyPlayingSource,
       playerState: playerState,
     );
   }
 }
 
-Future<bool> isAssetExists(String assetName) async {
+Future<bool> _isAssetExists(String assetName) async {
   try {
     await rootBundle.load(assetName);
     return true;
@@ -97,13 +105,13 @@ Future<bool> isAssetExists(String assetName) async {
   }
 }
 
-Future<bool> isUrlPlayable(String url) async {
+Future<bool> _isUrlPlayable(String url) async {
   try {
     final response = await http.head(Uri.parse(url));
 
     if (response.statusCode == 200) {
       final contentType = response.headers['content-type'];
-      debugPrint("Content type of $url: $contentType");
+      //debugPrint("Content type of $url: $contentType");
 
       if (contentType != null) {
         // Maybe be more specific here, rn as long as link is valid file is valid

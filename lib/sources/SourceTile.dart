@@ -14,7 +14,7 @@ class SourceTile extends StatelessWidget {
   //final Key? setSourceKey;
   final Key? playKey;
   final Color? buttonColor;
-  final ValueNotifier<Source?> sourceNotifier;
+  final ValueNotifier<Source?> currentlyPlayingSource;
   final ValueNotifier<PlayerState> playerState;
 
   SourceTile({
@@ -25,7 +25,7 @@ class SourceTile extends StatelessWidget {
     required this.source,
     required this.onEditSave,
     required this.title,
-    required this.sourceNotifier,
+    required this.currentlyPlayingSource,
     this.subtitle,
     this.index,
     //this.setSourceKey,
@@ -37,7 +37,7 @@ class SourceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<Source?>(
-      valueListenable: sourceNotifier,
+      valueListenable: currentlyPlayingSource,
       builder: (context, value, child) {
         return ValueListenableBuilder<PlayerState>(
           valueListenable: playerState,
