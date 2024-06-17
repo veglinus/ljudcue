@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:playsound/components/clearprefs.dart';
 import 'package:playsound/components/drop_down.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -15,7 +16,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   AudioPlayer get audioPlayer => widget.audioPlayer;
-
+  PlayerMode _playerMode = PlayerMode.mediaPlayer;
   AudioContextConfig audioContextConfig = AudioContextConfig();
 
   // rest of your code
@@ -57,14 +58,24 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
 
             // TODO: Autosave on/off
-            /*
+
             ListTile(
-              title: Text('Setting 1'),
-              trailing: Icon(Icons.arrow_forward_ios),
-              onTap: () {
-                // Handle tap
-              },
-            ),*/
+              title: const Text('Player Mode'),
+              trailing: Switch(
+                value: _playerMode == PlayerMode.mediaPlayer,
+                onChanged: (bool value) {
+                  setState(() {
+                    _playerMode =
+                        value ? PlayerMode.mediaPlayer : PlayerMode.lowLatency;
+                  });
+                },
+              ),
+              subtitle: Text(_playerMode == PlayerMode.mediaPlayer
+                  ? 'MediaPlayer'
+                  : 'LowLatency'),
+            ),
+
+            const ClearPrefsTile(),
           ],
         ).toList(),
       ),

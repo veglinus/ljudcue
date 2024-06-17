@@ -114,13 +114,16 @@ class ProjectManager {
           withData: true);
 
       if (result != null && result.files.isNotEmpty) {
+        /*
         final fileBytes = result.files.first.bytes;
         String jsonData = String.fromCharCodes(fileBytes!);
 
-        debugPrint("Loaded data: $jsonData");
+        debugPrint("Loaded data: $jsonData");*/
         //setDataToView(jsonData);
         currentProject.value = result.files.first.path!;
-        return jsonData;
+        return result.files.first.path!;
+
+        //return jsonData;
         //return;
       } else {
         return null;
@@ -183,7 +186,7 @@ class ProjectManager {
     return null;
   }
 
-  Future<void> showProjectPicker(BuildContext context) async {
+  Future<String?> showProjectPicker(BuildContext context) async {
     double screenWidth = MediaQuery.of(context).size.width;
     double screenHeight = MediaQuery.of(context).size.height;
 
@@ -199,9 +202,9 @@ class ProjectManager {
                 children: <Widget>[
                   ElevatedButton(
                     onPressed: () async {
-                      await _loadProjectFromStorage();
+                      String? data = await _loadProjectFromStorage();
                       if (context.mounted) {
-                        Navigator.of(context).pop();
+                        Navigator.of(context).pop(data);
                       }
                     },
                     child: const Text("Load project from storage"),
@@ -238,7 +241,10 @@ class ProjectManager {
 
     if (pickedProject != null) {
       // Load the picked project
-      await _loadProject(pickedProject);
+      String? data = await _loadProject(pickedProject);
+      return data;
+    } else {
+      return null;
     }
   }
 }

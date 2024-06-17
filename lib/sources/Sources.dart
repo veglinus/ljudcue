@@ -102,6 +102,16 @@ class SourcesTabState extends State<SourcesTab>
     setState(() {});
   }
 
+  void showLoadPickerAndLoadToView() async {
+    String? data = await project.showProjectPicker(context);
+    if (data != null) {
+      sourceWidgets.clear();
+      setDataToView(data);
+    } else {
+      debugPrint("Data is null not loading");
+    }
+  }
+
   void _initListeners() {
     AppBarNotifier appBarNotifier =
         Provider.of<AppBarNotifier>(context, listen: false);
@@ -153,49 +163,63 @@ class SourcesTabState extends State<SourcesTab>
             alignment: Alignment.topCenter,
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: ReorderableListView(
-                      buildDefaultDragHandles: false,
-                      key: ValueKey(rebuildCounter),
-                      onReorder: (oldIndex, newIndex) {
-                        setState(() {
-                          if (newIndex > oldIndex) {
-                            newIndex -= 1;
-                          }
-                          final SourceTile item =
-                              sourceWidgets.removeAt(oldIndex);
-                          sourceWidgets.insert(newIndex, item);
-                          setSourceWidgetsIndexes();
-                          save();
-                        });
-                      },
+              child: sourceWidgets.isNotEmpty
+                  ? Column(
                       children: [
-                        for (var i = 0; i < sourceWidgets.length; i++)
-                          KeyedSubtree(
-                            key: ValueKey(i),
-                            child: isReorderingEnabled
-                                ? ReorderableDragStartListener(
-                                    index: i,
-                                    child: Row(
-                                      children: [
-                                        const Icon(Icons.drag_handle),
-                                        Expanded(child: sourceWidgets[i]),
-                                      ],
-                                    ),
-                                  )
-                                : Row(
-                                    children: [
-                                      Expanded(child: sourceWidgets[i]),
-                                    ],
-                                  ),
+                        Expanded(
+                          child: ReorderableListView(
+                            buildDefaultDragHandles: false,
+                            key: ValueKey(rebuildCounter),
+                            onReorder: (oldIndex, newIndex) {
+                              setState(() {
+                                if (newIndex > oldIndex) {
+                                  newIndex -= 1;
+                                }
+                                final SourceTile item =
+                                    sourceWidgets.removeAt(oldIndex);
+                                sourceWidgets.insert(newIndex, item);
+                                setSourceWidgetsIndexes();
+                                save();
+                              });
+                            },
+                            children: [
+                              for (var i = 0; i < sourceWidgets.length; i++)
+                                KeyedSubtree(
+                                  key: ValueKey(i),
+                                  child: isReorderingEnabled
+                                      ? ReorderableDragStartListener(
+                                          index: i,
+                                          child: Row(
+                                            children: [
+                                              const Icon(Icons.drag_handle),
+                                              Expanded(child: sourceWidgets[i]),
+                                            ],
+                                          ),
+                                        )
+                                      : Row(
+                                          children: [
+                                            Expanded(child: sourceWidgets[i]),
+                                          ],
+                                        ),
+                                ),
+                            ],
                           ),
+                        ),
                       ],
+                    )
+                  : Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ElevatedButton(
+                              onPressed: () => showLoadPickerAndLoadToView(),
+                              child: const Text("Load project")),
+                          const SizedBox(height: 16),
+                          const Text(
+                              'Load to get started or add a file in the bottom right!'),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
             ),
           ),
         ),

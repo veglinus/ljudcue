@@ -66,7 +66,7 @@ class _PlaySoundState extends State<_PlaySound> {
                     myKey.currentState!.sourceWidgets);
                 break;
               case 'load':
-                myKey.currentState?.project.showProjectPicker(context);
+                myKey.currentState?.showLoadPickerAndLoadToView();
                 break;
               case 'reorder':
                 isReorderingEnabled = !isReorderingEnabled;

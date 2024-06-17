@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:playsound/ProjectManager.dart';
@@ -58,5 +60,10 @@ Future<void> saveAs(BuildContext context, ProjectManager project,
   if (projectName.isNotEmpty) {
     project.save(sourceWidgets, projectName,
         saveAs: true, folderPath: folderPath);
+
+    File file = File("$folderPath/$projectName/data.json");
+    if (file.existsSync()) {
+      project.currentProject.value = "$folderPath/$projectName/data.json";
+    }
   }
 }
