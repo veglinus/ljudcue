@@ -43,7 +43,7 @@ class SourceTile extends StatelessWidget {
           valueListenable: playerState,
           builder: (context, state, child) {
             Color? tileColor;
-            Widget? leading = index != null ? Text('$index.') : null;
+            Widget? leading = index != null ? Text('${index! + 1}.') : null;
             if (value == source) {
               if (state == PlayerState.playing) {
                 tileColor = Colors.green.shade200;

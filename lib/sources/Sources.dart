@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
@@ -31,7 +33,6 @@ class SourcesTabState extends State<SourcesTab>
     with AutomaticKeepAliveClientMixin<SourcesTab> {
   AudioPlayer get player => widget.player;
   final List<SourceTile> sourceWidgets = [];
-  late ValueNotifier<List<SourceTile>> sourceWidgetsNotifier;
   int rebuildCounter = 0;
   ProjectManager project = ProjectManager();
   ValueNotifier<Source?> currentlyPlayingSource = ValueNotifier<Source?>(null);
@@ -39,6 +40,12 @@ class SourcesTabState extends State<SourcesTab>
   // ignore: unused_field
   StreamSubscription? _playerStateChangeSubscription;
   bool isReorderingEnabled = false;
+  bool autoPlay = false;
+  bool stayAwake = true;
+  bool autoSavePref = true;
+  String playerMode = "PlayerMode.mediaPlayer";
+
+  ValueNotifier<int> currentlyPlayingIndex = ValueNotifier<int>(-1);
 
   /* METHODS USED BY SOURCETILE */
   Future<void> _removeSourceWidget(Widget sourceWidget) async {
@@ -49,10 +56,16 @@ class SourcesTabState extends State<SourcesTab>
   }
 
   Future<void> saveAndUpdate() async {
-    await save();
+    await autoSave();
     setState(() {
       rebuildCounter++;
     });
+  }
+
+  Future<void> autoSave() async {
+    if (autoSavePref) {
+      await save();
+    }
   }
   /* END OF SOURCETILE METHODS */
 
@@ -71,10 +84,11 @@ class SourcesTabState extends State<SourcesTab>
   void setDataToView(String jsonData) async {
     List<dynamic> data = jsonDecode(jsonData);
 
-    int index = 1;
+    int index = 0;
     for (var item in data) {
       //debugPrint("Drawing widget: $item");
       SourceTile widget = await getCorrectWidget(
+        index = index++,
         item,
         player,
         project,
@@ -82,6 +96,7 @@ class SourcesTabState extends State<SourcesTab>
         saveAndUpdate,
         _playerState,
         currentlyPlayingSource,
+        currentlyPlayingIndex,
       );
 
       widget.index = index++;
@@ -127,12 +142,58 @@ class SourcesTabState extends State<SourcesTab>
       appBarNotifier.setTitle(parentFolderName);
     });
 
+    currentlyPlayingIndex.addListener(() {
+      if (currentlyPlayingIndex.value != -1) {
+        if (currentlyPlayingSource.value !=
+            sourceWidgets[currentlyPlayingIndex.value].source) {
+          player.setSource(sourceWidgets[currentlyPlayingIndex.value].source);
+          debugPrint("Set the source of new file automatically.");
+          setState(() {
+            currentlyPlayingSource.value =
+                sourceWidgets[currentlyPlayingIndex.value].source;
+          });
+        }
+      }
+    });
+
     _playerStateChangeSubscription =
         player.onPlayerStateChanged.listen((state) {
-      //debugPrint("onPlayerStateChanged: $state");
+      debugPrint("onPlayerStateChanged: $state");
+      debugPrint(
+          "Current position: ${player.getCurrentPosition()} of ${player.getDuration()}");
+
+      if (state == PlayerState.completed) {
+        if (autoPlay) {
+          debugPrint("Autoplaying next stem");
+          if (currentlyPlayingIndex.value + 1 < sourceWidgets.length) {
+            currentlyPlayingIndex.value++;
+            player.play(sourceWidgets[currentlyPlayingIndex.value].source);
+          }
+        }
+      }
+
       setState(() {
         _playerState.value = state;
       });
+    });
+  }
+
+  void updateConfig() {
+    // Any settings changes can be refreshed here
+    SharedPreferences.getInstance().then((prefs) {
+      setState(() {
+        autoPlay = prefs.getBool('autoPlay') ?? false;
+        stayAwake = prefs.getBool('stayAwake') ?? true;
+        autoSavePref = prefs.getBool('autoSave') ?? true;
+        playerMode = prefs.getString('playerMode') ?? "mediaPlayer";
+      });
+
+      player.setPlayerMode(playerMode == "mediaPlayer"
+          ? PlayerMode.mediaPlayer
+          : PlayerMode.lowLatency);
+
+      //player.setAudioContext(AudioContextConfig(stayAwake: stayAwake).build());
+      // TODO: This setting doesnt work
     });
   }
 
@@ -141,9 +202,10 @@ class SourcesTabState extends State<SourcesTab>
     super.initState();
     project.loadSavedProjects();
     _loadMostRecentProject();
+    updateConfig();
     //addTestWidgets();
     _initListeners();
-    player.setReleaseMode(ReleaseMode.stop);
+    player.setReleaseMode(ReleaseMode.stop); // TODO: Make this a setting later
   }
 
   @override
@@ -155,76 +217,82 @@ class SourcesTabState extends State<SourcesTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return Stack(
-      alignment: Alignment.bottomCenter,
-      children: [
-        Center(
-          child: Container(
-            alignment: Alignment.topCenter,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: sourceWidgets.isNotEmpty
-                  ? Column(
-                      children: [
-                        Expanded(
-                          child: ReorderableListView(
-                            buildDefaultDragHandles: false,
-                            key: ValueKey(rebuildCounter),
-                            onReorder: (oldIndex, newIndex) {
-                              setState(() {
-                                if (newIndex > oldIndex) {
-                                  newIndex -= 1;
-                                }
-                                final SourceTile item =
-                                    sourceWidgets.removeAt(oldIndex);
-                                sourceWidgets.insert(newIndex, item);
-                                setSourceWidgetsIndexes();
-                                save();
-                              });
-                            },
-                            children: [
-                              for (var i = 0; i < sourceWidgets.length; i++)
-                                KeyedSubtree(
-                                  key: ValueKey(i),
-                                  child: isReorderingEnabled
-                                      ? ReorderableDragStartListener(
-                                          index: i,
-                                          child: Row(
+    return DropTarget(
+      onDragDone: (details) {
+        dragDropHandler(details);
+      },
+      child: Stack(
+        alignment: Alignment.bottomCenter,
+        children: [
+          Center(
+            child: Container(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: sourceWidgets.isNotEmpty
+                    ? Column(
+                        children: [
+                          Expanded(
+                            child: ReorderableListView(
+                              buildDefaultDragHandles: false,
+                              key: ValueKey(rebuildCounter),
+                              onReorder: (oldIndex, newIndex) {
+                                setState(() {
+                                  if (newIndex > oldIndex) {
+                                    newIndex -= 1;
+                                  }
+                                  final SourceTile item =
+                                      sourceWidgets.removeAt(oldIndex);
+                                  sourceWidgets.insert(newIndex, item);
+                                  setSourceWidgetsIndexes();
+                                  //autoSave();
+                                });
+                              },
+                              children: [
+                                for (var i = 0; i < sourceWidgets.length; i++)
+                                  KeyedSubtree(
+                                    key: ValueKey(i),
+                                    child: isReorderingEnabled
+                                        ? ReorderableDragStartListener(
+                                            index: i,
+                                            child: Row(
+                                              children: [
+                                                const Icon(Icons.drag_handle),
+                                                Expanded(
+                                                    child: sourceWidgets[i]),
+                                              ],
+                                            ),
+                                          )
+                                        : Row(
                                             children: [
-                                              const Icon(Icons.drag_handle),
                                               Expanded(child: sourceWidgets[i]),
                                             ],
                                           ),
-                                        )
-                                      : Row(
-                                          children: [
-                                            Expanded(child: sourceWidgets[i]),
-                                          ],
-                                        ),
-                                ),
-                            ],
+                                  ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
-                    )
-                  : Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          ElevatedButton(
-                              onPressed: () => showLoadPickerAndLoadToView(),
-                              child: const Text("Load project")),
-                          const SizedBox(height: 16),
-                          const Text(
-                              'Load to get started or add a file in the bottom right!'),
                         ],
+                      )
+                    : Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ElevatedButton(
+                                onPressed: () => showLoadPickerAndLoadToView(),
+                                child: const Text("Load project")),
+                            const SizedBox(height: 16),
+                            const Text(
+                                'Load to get started or add a file in the bottom right!'),
+                          ],
+                        ),
                       ),
-                    ),
+              ),
             ),
           ),
-        ),
-        customFAB(),
-      ],
+          customFAB(),
+        ],
+      ),
     );
   }
 
@@ -245,26 +313,8 @@ class SourcesTabState extends State<SourcesTab>
                   // Handle tap for the first button
                   final result = await FilePicker.platform.pickFiles();
                   final path = result?.files.single.path;
-
                   if (path != null) {
-                    sourceWidgets.add(SourceTile(
-                      key: UniqueKey(),
-                      setSource: () {
-                        player.setSource(DeviceFileSource(path));
-                        currentlyPlayingSource.value = DeviceFileSource(path);
-                      },
-                      play: () => player.play(DeviceFileSource(path)),
-                      removeSource: _removeSourceWidget,
-                      source: DeviceFileSource(path),
-                      onEditSave: () => saveAndUpdate(),
-                      title: 'Device File',
-                      subtitle: path,
-                      currentlyPlayingSource: currentlyPlayingSource,
-                      playerState: _playerState,
-                    ));
-                    setSourceWidgetsIndexes();
-                    setState(() {});
-                    save();
+                    addNewSource(path);
                   } else {
                     debugPrint('No file selected');
                   }
@@ -298,7 +348,7 @@ class SourcesTabState extends State<SourcesTab>
                       ));
                       setSourceWidgetsIndexes();
                       setState(() {});
-                      save();
+                      autoSave();
                     },
                   ),
                 );
@@ -314,164 +364,51 @@ class SourcesTabState extends State<SourcesTab>
   @override
   bool get wantKeepAlive => true;
 
-  /* UNUSED FUNCTIONALITY */
-
-  /*
-  Future<void> _setSourceBytesAsset(
-    Future<void> Function(Source) fun, {
-    required String asset,
-    String? mimeType,
-  }) async {
-    final bytes = await AudioCache.instance.loadAsBytes(asset);
-    await fun(BytesSource(bytes, mimeType: mimeType));
+  void dragDropHandler(DropDoneDetails details) async {
+    AudioPlayer testPlayer = AudioPlayer();
+    for (var file in details.files) {
+      bool isPlayable = await isFilePlayable(testPlayer, file.path);
+      if (isPlayable) {
+        addNewSource(file.path);
+      } else {
+        debugPrint("A file wasn't playable: $file");
+      }
+    }
+    testPlayer.dispose();
   }
 
-
-  Future<void> _setSourceBytesRemote(
-    Future<void> Function(Source) fun, {
-    required String url,
-    String? mimeType,
-  }) async {
-    final bytes = await http.readBytes(Uri.parse(url));
-    await fun(BytesSource(bytes, mimeType: mimeType));
+  Future<bool> isFilePlayable(AudioPlayer newPlayer, String path) async {
+    try {
+      await newPlayer.setSource(DeviceFileSource(path));
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
-  void addTestWidgets() {
-    const useLocalServer = bool.fromEnvironment('USE_LOCAL_SERVER');
-
-    final localhost = kIsWeb || !Platform.isAndroid ? 'localhost' : '10.0.2.2';
-    final host = useLocalServer ? 'http://$localhost:8080' : 'https://luan.xyz';
-    final wavUrl1 = '$host/files/audio/coins.wav';
-    final wavUrl2 = '$host/files/audio/laser.wav';
-    //final wavUrl3 = '$host/files/audio/coins_non_ascii_и.wav';
-    final mp3Url1 = '$host/files/audio/ambient_c_motion.mp3';
-    final mp3Url2 = '$host/files/audio/nasa_on_a_mission.mp3';
-    final m3u8StreamUrl = useLocalServer
-        ? '$host/files/live_streams/nasa_power_of_the_rovers.m3u8'
-        : 'https://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_world_service.m3u8';
-    final mpgaStreamUrl = useLocalServer
-        ? '$host/stream/mpeg'
-        : 'https://timesradio.wireless.radio/stream';
-
-    //const wavAsset1 = 'coins.wav';
-    const wavAsset2 = 'laser.wav';
-    const mp3Asset = 'nasa_on_a_mission.mp3';
-    const invalidAsset = 'invalid.txt';
-    //const specialCharAsset = 'coins_non_ascii_и.wav';
-    //const noExtensionAsset = 'coins_no_extension';
-
-    sourceWidgets.addAll([
-      createSourceTile(
-        setSourceKey: const Key('setSource-url-remote-wav-1'),
-        title: 'Remote URL WAV 1',
-        subtitle: 'coins.wav',
-        source: UrlSource(wavUrl1),
-      ),
-      createSourceTile(
-        setSourceKey: const Key('setSource-url-remote-wav-2'),
-        title: 'Remote URL WAV 2',
-        subtitle: 'laser.wav',
-        source: UrlSource(wavUrl2),
-      ),
-      createSourceTile(
-        setSourceKey: const Key('setSource-url-remote-mp3-1'),
-        title: 'Remote URL MP3 1 (VBR)',
-        subtitle: 'ambient_c_motion.mp3',
-        source: UrlSource(mp3Url1),
-      ),
-      createSourceTile(
-        setSourceKey: const Key('setSource-url-remote-mp3-2'),
-        title: 'Remote URL MP3 2',
-        subtitle: 'nasa_on_a_mission.mp3',
-        source: UrlSource(mp3Url2),
-      ),
-      createSourceTile(
-        setSourceKey: const Key('setSource-url-remote-m3u8'),
-        title: 'Remote URL M3U8',
-        subtitle: 'BBC stream',
-        source: UrlSource(m3u8StreamUrl),
-      ),
-      createSourceTile(
-        setSourceKey: const Key('setSource-url-remote-mpga'),
-        title: 'Remote URL MPGA',
-        subtitle: 'Times stream',
-        source: UrlSource(mpgaStreamUrl),
-      ),
-      /*
-        _createSourceTile(
-          setSourceKey: const Key('setSource-url-data-wav'),
-          title: 'Data URI WAV',
-          subtitle: 'coins.wav',
-          source: UrlSource(wavDataUri),
-        ),
-        _createSourceTile(
-          setSourceKey: const Key('setSource-url-data-mp3'),
-          title: 'Data URI MP3',
-          subtitle: 'coins.mp3',
-          source: UrlSource(mp3DataUri),
-        ),*/
-      createSourceTile(
-        setSourceKey: const Key('setSource-asset-wav'),
-        title: 'Asset WAV',
-        subtitle: 'laser.wav',
-        source: AssetSource(wavAsset2),
-      ),
-      createSourceTile(
-        setSourceKey: const Key('setSource-asset-mp3'),
-        title: 'Asset MP3',
-        subtitle: 'nasa.mp3',
-        source: AssetSource(mp3Asset),
-      ),
-      SourceTile(
-        setSource: () => _setSourceBytesAsset(
-          _setSource,
-          asset: wavAsset2,
-          mimeType: 'audio/wav',
-        ),
-        setSourceKey: const Key('setSource-bytes-local'),
-        play: () => _setSourceBytesAsset(
-          _play,
-          asset: wavAsset2,
-          mimeType: 'audio/wav',
-        ),
+  Future<void> addNewSource(String path) async {
+    File file = File(path);
+    if (!file.existsSync()) {
+      debugPrint('File does not exist: $path');
+    } else {
+      sourceWidgets.add(SourceTile(
+        key: UniqueKey(),
+        setSource: () {
+          player.setSource(DeviceFileSource(path));
+          currentlyPlayingSource.value = DeviceFileSource(path);
+        },
+        play: () => player.play(DeviceFileSource(path)),
         removeSource: _removeSourceWidget,
-        getSource: () => BytesSource(
-          File(wavAsset2).readAsBytesSync(),
-          mimeType: 'audio/wav',
-        ),
-        onEditSave: save,
-        title: 'Bytes - Local',
-        subtitle: 'laser.wav',
-      ),
-      /*
-      // TODO: Support remote mp3
-      _SourceTile(
-        setSource: () => _setSourceBytesRemote(
-          _setSource,
-          url: mp3Url1,
-          mimeType: 'audio/mpeg',
-        ),
-        setSourceKey: const Key('setSource-bytes-remote'),
-        play: () => _setSourceBytesRemote(
-          _play,
-          url: mp3Url1,
-          mimeType: 'audio/mpeg',
-        ),
-        getSource: () => BytesSource(
-          http.readBytes(Uri.parse(mp3Url1)),
-          mimeType: 'audio/mpeg',
-        ),
-        removeSource: _removeSourceWidget,
-        title: 'Bytes - Remote',
-        subtitle: 'ambient.mp3',
-      ),*/
-      createSourceTile(
-        setSourceKey: const Key('setSource-asset-invalid'),
-        title: 'Invalid Asset',
-        subtitle: 'invalid.txt',
-        source: AssetSource(invalidAsset),
-        buttonColor: Colors.red,
-      ),
-    ]);
-  }*/
+        source: DeviceFileSource(path),
+        onEditSave: () => saveAndUpdate(),
+        title: 'Device File',
+        subtitle: path,
+        currentlyPlayingSource: currentlyPlayingSource,
+        playerState: _playerState,
+      ));
+      setSourceWidgetsIndexes();
+      setState(() {});
+      autoSave();
+    }
+  }
 }

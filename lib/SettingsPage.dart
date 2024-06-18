@@ -4,6 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:playsound/components/clearprefs.dart';
 import 'package:playsound/components/drop_down.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsPage extends StatefulWidget {
   final AudioPlayer audioPlayer;
@@ -16,8 +17,24 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   AudioPlayer get audioPlayer => widget.audioPlayer;
-  PlayerMode _playerMode = PlayerMode.mediaPlayer;
   AudioContextConfig audioContextConfig = AudioContextConfig();
+  bool autoPlay = false;
+  bool stayAwake = true;
+  bool autoSave = true;
+  String playerMode = "mediaPlayer";
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      setState(() {
+        autoPlay = prefs.getBool('autoPlay') ?? false;
+        stayAwake = prefs.getBool('stayAwake') ?? true;
+        autoSave = prefs.getBool('autoSave') ?? true;
+        playerMode = prefs.getString('playerMode') ?? "mediaPlayer";
+      });
+    });
+  }
 
   // rest of your code
   @override
@@ -35,9 +52,13 @@ class _SettingsPageState extends State<SettingsPage> {
                 title: const Text('Keep awake'),
                 trailing: Switch(
                   value: audioContextConfig.stayAwake,
-                  onChanged: (bool value) {
+                  onChanged: (bool value) async {
+                    SharedPreferences prefs =
+                        await SharedPreferences.getInstance();
+                    await prefs.setBool('stayAwake', value);
                     setState(() {
                       audioContextConfig = AudioContextConfig(stayAwake: value);
+                      stayAwake = value;
                       applySettings();
                     });
                   },
@@ -57,22 +78,52 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ],
 
-            // TODO: Autosave on/off
+            // TODO: Apply the autosave setting in code
+            ListTile(
+              title: const Text('Autosave'),
+              trailing: Switch(
+                value: autoSave,
+                onChanged: (bool value) async {
+                  SharedPreferences prefs =
+                      await SharedPreferences.getInstance();
+                  await prefs.setBool('autoSave', value);
+                  setState(() {
+                    autoSave = value;
+                  });
+                },
+              ),
+            ),
 
             ListTile(
               title: const Text('Player Mode'),
               trailing: Switch(
-                value: _playerMode == PlayerMode.mediaPlayer,
-                onChanged: (bool value) {
+                value: playerMode == 'mediaPlayer',
+                onChanged: (bool value) async {
+                  SharedPreferences prefs =
+                      await SharedPreferences.getInstance();
+                  await prefs.setString(
+                      'playerMode', value ? 'mediaPlayer' : 'lowLatency');
                   setState(() {
-                    _playerMode =
-                        value ? PlayerMode.mediaPlayer : PlayerMode.lowLatency;
+                    playerMode = value ? 'mediaPlayer' : 'lowLatency';
                   });
                 },
               ),
-              subtitle: Text(_playerMode == PlayerMode.mediaPlayer
-                  ? 'MediaPlayer'
-                  : 'LowLatency'),
+              subtitle: Text(playerMode),
+            ),
+
+            ListTile(
+              title: const Text('Autoplay'),
+              trailing: Switch(
+                value: autoPlay,
+                onChanged: (bool value) async {
+                  SharedPreferences prefs =
+                      await SharedPreferences.getInstance();
+                  await prefs.setBool('autoPlay', value);
+                  setState(() {
+                    autoPlay = value;
+                  });
+                },
+              ),
             ),
 
             const ClearPrefsTile(),

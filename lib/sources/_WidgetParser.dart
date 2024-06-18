@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
 
 Future<SourceTile> getCorrectWidget(
+  int index,
   dynamic input,
   AudioPlayer player,
   ProjectManager project,
@@ -16,6 +17,7 @@ Future<SourceTile> getCorrectWidget(
   void Function() onEditSave,
   final ValueNotifier<PlayerState> playerState,
   final ValueNotifier<Source?> currentlyPlayingSource,
+  final ValueNotifier<int> currentlyPlayingIndex,
 ) async {
   Source source;
   bool invalid = false;
@@ -63,6 +65,7 @@ Future<SourceTile> getCorrectWidget(
         debugPrint("set source");
         player.setSource(source);
         currentlyPlayingSource.value = source;
+        currentlyPlayingIndex.value = index;
       },
       play: () => player.play(source),
       removeSource: removeSourceWidget,
@@ -82,6 +85,7 @@ Future<SourceTile> getCorrectWidget(
         debugPrint("set source");
         player.setSource(source);
         currentlyPlayingSource.value = source;
+        currentlyPlayingIndex.value = index;
       },
       play: () => player.play(source),
       removeSource: removeSourceWidget,

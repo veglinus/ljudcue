@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -48,7 +49,7 @@ class _PlaySoundState extends State<_PlaySound> {
   @override
   Widget build(BuildContext context) {
     AppBarNotifier appBarNotifier = Provider.of<AppBarNotifier>(context);
-    bool isReorderingEnabled = false;
+    bool isReorderingEnabled = myKey.currentState?.isReorderingEnabled ?? false;
 
     return Scaffold(
       appBar: AppBar(
@@ -69,6 +70,10 @@ class _PlaySoundState extends State<_PlaySound> {
                 myKey.currentState?.showLoadPickerAndLoadToView();
                 break;
               case 'reorder':
+                if (isReorderingEnabled) {
+                  myKey.currentState?.autoSave();
+                }
+
                 isReorderingEnabled = !isReorderingEnabled;
                 setState(() {
                   myKey.currentState!.isReorderingEnabled = isReorderingEnabled;
@@ -108,20 +113,37 @@ class _PlaySoundState extends State<_PlaySound> {
                     audioPlayer: myAudioPlayer,
                   ),
                 ),
-              );
+              ).then((_) {
+                myKey.currentState?.updateConfig();
+              });
             },
           ),
         ],
       ),
       body: Column(
         children: [
-          ControlsTab(player: myAudioPlayer),
+          ControlsTab(player: myAudioPlayer, callback: setSourceIndex),
           Expanded(
             child: SourcesTab(player: myAudioPlayer, key: myKey),
           ),
         ],
       ),
     );
+  }
+
+  void setSourceIndex(int index) {
+    var currentState = myKey.currentState;
+    var currentIndex = currentState?.currentlyPlayingIndex.value ?? 0;
+    var sourceWidgetsLength = currentState?.sourceWidgets.length ?? 0;
+
+    if (index >= sourceWidgetsLength) {
+      debugPrint("Index out of bounds: $index");
+      currentState?.currentlyPlayingIndex.value = 0;
+    } else {
+      debugPrint("Changing source index: $index");
+      currentState?.currentlyPlayingIndex.value =
+          currentIndex == -1 ? 0 : currentIndex + index;
+    }
   }
 }
 

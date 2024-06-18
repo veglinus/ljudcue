@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 
 class ControlsTab extends StatefulWidget {
   final AudioPlayer player;
+  final Function(int) callback;
 
   const ControlsTab({
     required this.player,
     super.key,
+    required this.callback,
   });
 
   @override
@@ -76,6 +78,11 @@ class _ControlsTabState extends State<ControlsTab> {
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             IconButton(
+                onPressed: () {
+                  widget.callback(-1);
+                },
+                icon: const Icon(Icons.skip_previous, size: 45.0)),
+            IconButton(
               key: const Key('control-stop'),
               icon: const Icon(Icons.stop, size: 45.0),
               onPressed: widget.player.stop,
@@ -116,10 +123,16 @@ class _ControlsTabState extends State<ControlsTab> {
                         : ReleaseMode.loop));
               },
             ),
+            IconButton(
+                onPressed: () {
+                  widget.callback(1);
+                },
+                icon: const Icon(Icons.skip_next, size: 45.0)),
           ],
         ),
         Slider(
           onChanged: (value) {
+            // TODO: If in low latency mode, warn user that seek doesn't work
             final duration = _duration;
             if (duration == null) {
               return;
