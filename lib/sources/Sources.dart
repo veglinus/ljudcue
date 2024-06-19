@@ -10,6 +10,7 @@ import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:ljudcue/sources/SourceTile.dart';
 import 'package:ljudcue/ProjectManager.dart';
 import 'package:ljudcue/main.dart';
+import 'package:ljudcue/sources/_SaveAs.dart';
 import 'package:ljudcue/sources/_WidgetParser.dart';
 import 'package:ljudcue/components/utils.dart';
 import 'package:ljudcue/sources/_SourceDialog.dart';
@@ -70,7 +71,11 @@ class SourcesTabState extends State<SourcesTab>
   /* END OF SOURCETILE METHODS */
 
   Future<void> save() async {
-    project.save(sourceWidgets, project.currentProject.value);
+    if (project.currentProject.value.isEmpty) {
+      await saveAs(context, project, sourceWidgets);
+    } else {
+      project.save(sourceWidgets, project.currentProject.value);
+    }
   }
 
   Future<void> _loadMostRecentProject() async {

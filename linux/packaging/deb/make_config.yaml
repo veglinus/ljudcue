@@ -1,0 +1,36 @@
+display_name: LjudCue
+package_name: ljudcue
+
+maintainer:
+  name: Linus Hvenfelt
+  email: linushvenfelt@gmail.com
+
+priority: optional
+
+section: x11
+
+installed_size: 15700
+
+dependencies:
+  - mpv
+
+essential: false
+
+# icon: ./assets/ljudcue.png
+
+postuninstall_scripts:
+  - echo "LjudCue uninstalled. Goodbye! Send your feedback to info@linush.com!"
+
+keywords:
+  - Sound
+  - Cue
+  - Player
+  - ljudcue
+
+generic_name: Music Application
+
+categories:
+  - Music
+  - Media
+
+startup_notify: true

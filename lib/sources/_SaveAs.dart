@@ -65,5 +65,6 @@ Future<void> saveAs(BuildContext context, ProjectManager project,
     if (file.existsSync()) {
       project.currentProject.value = "$folderPath/$projectName/data.json";
     }
+    // TODO: URGENT: This doesnt seem to set current project properly
   }
 }

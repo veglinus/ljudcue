@@ -1,5 +1,5 @@
 name: ljudcue
-description: "A new Flutter project."
+description: "Sound cue player"
 
 # Prevent accidental publishing to pub.dev.
 publish_to: 'none'
@@ -25,12 +25,14 @@ dependencies:
   flutter_speed_dial: ^7.0.0
   path: ^1.9.0
   desktop_drop: ^0.4.4
+  win32audio: ^1.3.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
   flutter_lints: ^3.0.0
+  msix: ^3.16.7
 
 flutter:
   uses-material-design: true
@@ -41,3 +43,18 @@ flutter:
   assets:
     # Add assets from the images directory to the application.
     - assets/images/
+
+msix_config:
+  display_name: LjudCue
+  app_installer: #<-- app installer configuration
+   # publish_folder_path: c:\path\to\myPublishFolder
+    hours_between_update_checks: 6
+    automatic_background_task: false
+    update_blocks_activation: true
+    show_prompt: true
+    force_update_from_any_version: false
+  publisher_display_name: Linus Hvenfelt
+  identity_name: com.linush.ljudcue
+  msix_version: 1.0.0.0
+  logo_path: ./assets/ljudcue.png
+  capabilities: internetClient, backgroundMediaPlayback, globalMediaControl

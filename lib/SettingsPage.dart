@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:ljudcue/components/clearprefs.dart';
 import 'package:ljudcue/components/random.dart';
 import 'package:ljudcue/components/utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:win32audio/win32audio.dart';
 
 class SettingsPage extends StatefulWidget {
   final AudioPlayer player;
@@ -31,6 +33,9 @@ class _SettingsPageState extends State<SettingsPage>
   bool autoSave = true;
   String playerMode = "mediaPlayer";
 
+  List<AudioDevice> audioDevices = <AudioDevice>[];
+  Map<String, Uint8List?> _audioIcons = <String, Uint8List?>{};
+
   @override
   void initState() {
     super.initState();
@@ -42,6 +47,22 @@ class _SettingsPageState extends State<SettingsPage>
         playerMode = prefs.getString('playerMode') ?? "mediaPlayer";
       });
     });
+    if (Platform.isWindows) {
+      fetchAudioDevices();
+    }
+  }
+
+  void fetchAudioDevices() async {
+    audioDevices = await Audio.enumDevices(AudioDeviceType.output) ?? [];
+
+    _audioIcons = <String, Uint8List>{};
+    for (AudioDevice audioDevice in audioDevices) {
+      if (_audioIcons[audioDevice.id] == null) {
+        _audioIcons[audioDevice.id] = await WinIcons()
+            .extractFileIcon(audioDevice.iconPath, iconID: audioDevice.iconID);
+      }
+    }
+    setState(() {});
   }
 
   @override
@@ -90,22 +111,6 @@ class _SettingsPageState extends State<SettingsPage>
               ),
             ),
             ListTile(
-              title: const Text('Player Mode'),
-              trailing: Switch(
-                value: playerMode == 'mediaPlayer',
-                onChanged: (bool value) async {
-                  SharedPreferences prefs =
-                      await SharedPreferences.getInstance();
-                  await prefs.setString(
-                      'playerMode', value ? 'mediaPlayer' : 'lowLatency');
-                  setState(() {
-                    playerMode = value ? 'mediaPlayer' : 'lowLatency';
-                  });
-                },
-              ),
-              subtitle: Text(playerMode),
-            ),
-            ListTile(
               title: const Text('Autoplay'),
               trailing: Switch(
                 value: autoPlay,
@@ -124,11 +129,70 @@ class _SettingsPageState extends State<SettingsPage>
             ),
             _genericTab(),
             if (Platform.isAndroid) ...[
+              ListTile(
+                title: const Text('Player Mode'),
+                trailing: Switch(
+                  value: playerMode == 'mediaPlayer',
+                  onChanged: (bool value) async {
+                    SharedPreferences prefs =
+                        await SharedPreferences.getInstance();
+                    await prefs.setString(
+                        'playerMode', value ? 'mediaPlayer' : 'lowLatency');
+                    setState(() {
+                      playerMode = value ? 'mediaPlayer' : 'lowLatency';
+                    });
+                  },
+                ),
+                subtitle: Text(playerMode),
+              ),
               _androidTab(),
             ],
             if (Platform.isIOS) ...[
               _iosTab(),
             ],
+
+            if (Platform.isWindows) ...[
+              Flexible(
+                  flex: 3,
+                  fit: FlexFit.loose,
+                  child: ListView.builder(
+                      itemCount: audioDevices.length,
+                      itemBuilder: (BuildContext context, int index) {
+                        return ListTile(
+                          leading:
+                              (_audioIcons.containsKey(audioDevices[index].id))
+                                  ? Image.memory(
+                                      _audioIcons[audioDevices[index].id] ??
+                                          Uint8List(0),
+                                      width: 32,
+                                      height: 32,
+                                      gaplessPlayback: true,
+                                    )
+                                  : const Icon(Icons.spoke_outlined),
+                          title: Text(audioDevices[index].name),
+                          trailing: IconButton(
+                            icon: Icon((audioDevices[index].isActive == true
+                                ? Icons.check_box_outlined
+                                : Icons.check_box_outline_blank)),
+                            onPressed: () async {
+                              await Audio.setDefaultDevice(
+                                  audioDevices[index].id);
+                              fetchAudioDevices();
+                              setState(() {});
+                            },
+                          ),
+                        );
+                      })),
+              const Divider(
+                thickness: 5,
+                height: 10,
+                color: Color.fromARGB(12, 0, 0, 0),
+              ),
+            ],
+            ListTile(
+              title: const Text('Get output devices'),
+              onTap: () async {},
+            ),
             const ClearPrefsTile(),
           ],
         ).toList(),

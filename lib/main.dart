@@ -15,19 +15,19 @@ void main() {
     ChangeNotifierProvider(
       create: (context) => AppBarNotifier(),
       child: const MaterialApp(
-          home: _ljudcue(), debugShowCheckedModeBanner: false),
+          home: _LjudCue(), debugShowCheckedModeBanner: false),
     ),
   );
 }
 
-class _ljudcue extends StatefulWidget {
-  const _ljudcue();
+class _LjudCue extends StatefulWidget {
+  const _LjudCue();
 
   @override
-  _ljudcueState createState() => _ljudcueState();
+  _LjudCueState createState() => _LjudCueState();
 }
 
-class _ljudcueState extends State<_ljudcue> {
+class _LjudCueState extends State<_LjudCue> {
   AudioPlayer myAudioPlayer = AudioPlayer();
   List<StreamSubscription> streams = [];
   final GlobalKey<SourcesTabState> myKey = GlobalKey();
@@ -58,6 +58,13 @@ class _ljudcueState extends State<_ljudcue> {
           icon: const Icon(Icons.menu),
           onSelected: (String result) {
             switch (result) {
+              case 'new':
+                myKey.currentState?.autoSave();
+                myKey.currentState?.project.currentProject.value = '';
+                myKey.currentState?.sourceWidgets.clear();
+                myKey.currentState?.currentlyPlayingIndex.value = -1;
+                myKey.currentState?.rebuildCounter++;
+                break;
               case 'save':
                 myKey.currentState?.save();
                 break;
@@ -83,6 +90,10 @@ class _ljudcueState extends State<_ljudcue> {
             }
           },
           itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+            const PopupMenuItem<String>(
+              value: 'new',
+              child: Text('New'),
+            ),
             const PopupMenuItem<String>(
               value: 'save',
               child: Text('Save'),
@@ -147,7 +158,7 @@ class _ljudcueState extends State<_ljudcue> {
 }
 
 class AppBarNotifier extends ChangeNotifier {
-  String _title = 'ljudcue';
+  String _title = 'LjudCue';
 
   String get title => _title;
 

@@ -29,7 +29,8 @@ class ProjectManager {
             await Directory(projectFolderPath).create(recursive: true);
 
             // Parse widgets into JSON and get files to copy
-            var (json, filesToCopy) = await _widgetsIntoJson(sourceWidgets);
+            var (json, filesToCopy) = await _widgetsIntoJson(sourceWidgets,
+                newPath: projectFolderPath);
 
             // Create the data file
             File file = File('$projectFolderPath/data.json');
@@ -65,8 +66,8 @@ class ProjectManager {
     }
   }
 
-  Future<(String, List<String>)> _widgetsIntoJson(
-      List<Widget> sourceWidgets) async {
+  Future<(String, List<String>)> _widgetsIntoJson(List<Widget> sourceWidgets,
+      {String? newPath}) async {
     debugPrint("Parsing widgets into json..");
     List<Map> saveData = [];
     List<String> filesToCopy = [];
@@ -80,12 +81,15 @@ class ProjectManager {
           'type': source.runtimeType.toString(),
         };
         if (source is DeviceFileSource) {
-          filesToCopy.add(source.path);
           String fileName = source.path.split("/").last;
-          debugPrint("Copying file: $fileName");
 
+          File file = File("$newPath/$fileName");
+          if (!file.existsSync()) {
+            filesToCopy.add(source.path);
+            debugPrint("Copying file: $fileName");
+            widgetData['projectCopied'] = true;
+          }
           widgetData['source'] = fileName;
-          widgetData['projectCopied'] = true;
         } else if (source is UrlSource) {
           widgetData['source'] = source.url;
         } else if (source is AssetSource) {
