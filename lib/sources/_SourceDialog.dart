@@ -4,8 +4,8 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:playsound/components/btn.dart';
-import 'package:playsound/components/drop_down.dart';
+import 'package:ljudcue/components/btn.dart';
+import 'package:ljudcue/components/drop_down.dart';
 
 class SourceDialog extends StatefulWidget {
   final void Function(Source source, String path) onAdd;

@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:playsound/ProjectManager.dart';
-import 'package:playsound/sources/SourceTile.dart';
+import 'package:ljudcue/ProjectManager.dart';
+import 'package:ljudcue/sources/SourceTile.dart';
 
 Future<void> saveAs(BuildContext context, ProjectManager project,
     List<SourceTile> sourceWidgets) async {

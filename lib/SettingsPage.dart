@@ -2,9 +2,9 @@ import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
-import 'package:playsound/components/clearprefs.dart';
-import 'package:playsound/components/random.dart';
-import 'package:playsound/components/utils.dart';
+import 'package:ljudcue/components/clearprefs.dart';
+import 'package:ljudcue/components/random.dart';
+import 'package:ljudcue/components/utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -18,8 +18,6 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage>
     with AutomaticKeepAliveClientMixin<SettingsPage> {
-  static GlobalAudioScope get _global => AudioPlayer.global;
-
   AudioPlayer get player => widget.player;
 
   /// Set config for all platforms

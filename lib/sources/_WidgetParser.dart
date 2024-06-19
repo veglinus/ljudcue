@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:playsound/ProjectManager.dart';
-import 'package:playsound/sources/SourceTile.dart';
+import 'package:ljudcue/ProjectManager.dart';
+import 'package:ljudcue/sources/SourceTile.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
 

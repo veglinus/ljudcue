@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
-import 'package:playsound/SettingsPage.dart';
-import 'package:playsound/controls.dart';
-import 'package:playsound/sources/_SaveAs.dart';
-import 'package:playsound/sources/Sources.dart';
+import 'package:ljudcue/SettingsPage.dart';
+import 'package:ljudcue/controls.dart';
+import 'package:ljudcue/sources/_SaveAs.dart';
+import 'package:ljudcue/sources/Sources.dart';
 import 'package:provider/provider.dart';
 
 typedef OnError = void Function(Exception exception);
@@ -15,19 +15,19 @@ void main() {
     ChangeNotifierProvider(
       create: (context) => AppBarNotifier(),
       child: const MaterialApp(
-          home: _PlaySound(), debugShowCheckedModeBanner: false),
+          home: _ljudcue(), debugShowCheckedModeBanner: false),
     ),
   );
 }
 
-class _PlaySound extends StatefulWidget {
-  const _PlaySound();
+class _ljudcue extends StatefulWidget {
+  const _ljudcue();
 
   @override
-  _PlaySoundState createState() => _PlaySoundState();
+  _ljudcueState createState() => _ljudcueState();
 }
 
-class _PlaySoundState extends State<_PlaySound> {
+class _ljudcueState extends State<_ljudcue> {
   AudioPlayer myAudioPlayer = AudioPlayer();
   List<StreamSubscription> streams = [];
   final GlobalKey<SourcesTabState> myKey = GlobalKey();
@@ -147,7 +147,7 @@ class _PlaySoundState extends State<_PlaySound> {
 }
 
 class AppBarNotifier extends ChangeNotifier {
-  String _title = 'PlaySound';
+  String _title = 'ljudcue';
 
   String get title => _title;
 

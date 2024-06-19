@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
-import 'package:playsound/components/utils.dart';
+import 'package:ljudcue/components/utils.dart';
 
 class ControlsTab extends StatefulWidget {
   final AudioPlayer player;

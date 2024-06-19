@@ -1,4 +1,4 @@
-package com.linush.playsound
+package com.linush.ljudcue
 
 import io.flutter.embedding.android.FlutterActivity
 
