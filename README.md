@@ -10,8 +10,8 @@ Todo:
 - [x] Load session
 - [x] Some kind of session management
 - [ ] Change how individual stems are played (playback, volume, etc.)
-- [ ] Next, previous stems in controls
-- [ ] Keep awake setting always on
+- [x] Next, previous stems in controls
+- [x] Keep awake setting always on
 
 Optional:
 - [ ] Webserver for LAN remote control

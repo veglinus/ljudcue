@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -110,7 +109,7 @@ class _PlaySoundState extends State<_PlaySound> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => SettingsPage(
-                    audioPlayer: myAudioPlayer,
+                    player: myAudioPlayer,
                   ),
                 ),
               ).then((_) {

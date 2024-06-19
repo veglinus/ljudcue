@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:playsound/components/utils.dart';
 
 class ControlsTab extends StatefulWidget {
   final AudioPlayer player;
@@ -132,7 +133,9 @@ class _ControlsTabState extends State<ControlsTab> {
         ),
         Slider(
           onChanged: (value) {
-            // TODO: If in low latency mode, warn user that seek doesn't work
+            if (widget.player.mode == PlayerMode.lowLatency) {
+              toast("Seek not supported in low latency mode");
+            }
             final duration = _duration;
             if (duration == null) {
               return;

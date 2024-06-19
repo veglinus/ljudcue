@@ -72,7 +72,7 @@ Future<SourceTile> getCorrectWidget(
       source: source,
       onEditSave: () => onEditSave,
       //setSourceKey: const Key('setSource-asset-invalid'),
-      title: "Invalid Asset - ${input['title']}",
+      title: "Invalid Asset",
       subtitle: input['subtitle'],
       buttonColor: Colors.red,
       currentlyPlayingSource: currentlyPlayingSource,
