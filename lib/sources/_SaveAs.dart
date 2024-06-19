@@ -58,13 +58,16 @@ Future<void> saveAs(BuildContext context, ProjectManager project,
   );
 
   if (projectName.isNotEmpty) {
-    project.save(sourceWidgets, projectName,
+    await project.save(sourceWidgets, projectName,
         saveAs: true, folderPath: folderPath);
 
-    File file = File("$folderPath/$projectName/data.json");
+    String formattedPath = "$folderPath/$projectName/data.json";
+    File file = File(formattedPath);
+    debugPrint("Checking if file exists: $formattedPath");
     if (file.existsSync()) {
       project.currentProject.value = "$folderPath/$projectName/data.json";
+    } else {
+      debugPrint("File does not exist: $formattedPath");
     }
-    // TODO: URGENT: This doesnt seem to set current project properly
   }
 }
